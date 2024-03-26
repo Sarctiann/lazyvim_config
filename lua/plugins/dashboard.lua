@@ -3,11 +3,11 @@ return {
     "nvimdev/dashboard-nvim",
     event = "VimEnter",
     opts = function(_, opts)
-      local sub_header = string.rep("\n", 4)
+      local sub_header = string.rep("\n", 5)
         .. "Welcome "
         .. os.getenv("USER"):lower():gsub("^%l", string.upper)
         .. "!"
-        .. "\n"
+        .. "\n\n"
 
       opts = {
         theme = "doom",
