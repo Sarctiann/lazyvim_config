@@ -16,9 +16,8 @@ vim.keymap.set("v", "<M-Down>", ":m '>+1<cr>gv=gv", { desc = "Move down" })
 vim.keymap.set("v", "<M-Up>", ":m '<-2<cr>gv=gv", { desc = "Move up" })
 
 local open_or_create_new_note = function()
-  local notes_dir = vim.fn.expand("~/Documents/VSCodeNotes/")
   local note_name = string.lower(tostring(os.date("%m-%d-%a")))
-  local note_file = notes_dir .. note_name .. ".md"
+  local note_file = "./" .. note_name .. ".md"
   if vim.fn.filereadable(note_file) == 0 then
     vim.fn.writefile({ "# " .. note_name, "", "## " }, note_file)
     print(note_name .. " was created")
@@ -30,4 +29,4 @@ local open_or_create_new_note = function()
   vim.cmd("normal! G$<cr>")
 end
 
-vim.keymap.set("n", "<leader>n", open_or_create_new_note, { desc = "Open or create Today's md-note" })
+vim.keymap.set("n", "<leader>fm", open_or_create_new_note, { desc = "Open or create Today's md-note" })
