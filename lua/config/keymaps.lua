@@ -30,3 +30,4 @@ local open_or_create_new_note = function()
 end
 
 vim.keymap.set("n", "<leader>fm", open_or_create_new_note, { desc = "Open or create Today's md-note" })
+
