@@ -19,8 +19,8 @@ if vim.g.neovide then
   -- end
 
   vim.g.neovide_window_blurred = true
-  vim.g.neovide_floating_blur_amount_x = 1.0
-  vim.g.neovide_floating_blur_amount_y = 1.0
+  vim.g.neovide_floating_blur_amount_x = 2.0
+  vim.g.neovide_floating_blur_amount_y = 2.0
 
   vim.g.neovide_cursor_vfx_mode = "ripple"
   vim.g.neovide_cursor_animation_length = 0.05
