@@ -3,7 +3,7 @@
 -- Add any additional autocmds here
 
 -- Set up custom cursor
-vim.api.nvim_create_autocmd({ "BufEnter" }, {
+vim.api.nvim_create_autocmd({ "BufEnter", "TermLeave" }, {
   group = vim.api.nvim_create_augroup("Custom-Cursor", { clear = true }),
   callback = function()
     -- Set cursor colors
@@ -20,12 +20,13 @@ local FloatTransparency = vim.api.nvim_create_augroup("Custom-FloatTransparency"
 vim.api.nvim_create_autocmd({ "TermEnter" }, {
   group = FloatTransparency,
   callback = function()
-    vim.opt_local.winblend = 5
+    vim.opt_local.winblend = 0
+    vim.opt_local.guicursor = "a:ver30"
   end,
 })
 vim.api.nvim_create_autocmd({ "TermLeave" }, {
   group = FloatTransparency,
   callback = function()
-    vim.opt_local.winblend = 0
+    vim.opt_local.winblend = 10
   end,
 })
