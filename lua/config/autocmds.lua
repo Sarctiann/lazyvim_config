@@ -9,7 +9,7 @@ vim.api.nvim_create_autocmd({ "BufEnter" }, {
     -- Set cursor colors
     vim.api.nvim_command("highlight Cursor guibg=#aaffcc")
     vim.api.nvim_command("highlight VisualCursor guibg=#cc99cc")
-    vim.api.nvim_command("highlight Visual guibg=#403050")
+    vim.api.nvim_command("highlight Visual guibg=#2a2a5a")
     vim.api.nvim_command("highlight ReplaceCursor guibg=#cc7070")
     -- Apply confs
     vim.opt_local.guicursor = "n-c-ci-cr-sm:block,i:ver30-Cursor,v-ve-o:hor30-VisualCursor,r:hor50-ReplaceCursor"
