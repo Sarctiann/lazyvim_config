@@ -32,6 +32,7 @@ end
 vim.keymap.set("n", "<leader>fm", open_or_create_new_note, { desc = "Open or create Today's md-note" })
 
 -- floating terminal
+
 local lazyterm = function()
   LazyVim.terminal(nil, {
     cwd = LazyVim.root(),
@@ -48,3 +49,7 @@ vim.keymap.set("n", "<leader>fT", function()
 end, { desc = "Terminal (cwd)" })
 vim.keymap.set("n", "<c-/>", lazyterm, { desc = "Terminal (Root Dir)" })
 vim.keymap.set("n", "<c-_>", lazyterm, { desc = "which_key_ignore" })
+
+-- Remove some default keymaps
+
+vim.keymap.set("n", "J", "", { desc = "which_key_ignore", noremap = false })
