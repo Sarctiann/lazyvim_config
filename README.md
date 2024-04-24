@@ -1,5 +1,5 @@
 # Sarctiann NVIM setup
-### Based 💤 [LazyVim](https://github.com/LazyVim/LazyVim)
+### Based on 💤 [LazyVim](https://github.com/LazyVim/LazyVim)
 Please refer to the lazyvim [documentation] (https://lazyvim.github.io/installation) for a deeper understanding or if you want to start your own setup.
 
 ---
