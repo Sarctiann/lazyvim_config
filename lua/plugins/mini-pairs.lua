@@ -3,9 +3,9 @@ return {
   opts = {
     mappings = {
       -- Prevents the action if the cursor is just before any character or next to a "\".
-      ["("] = { action = "open", pair = "()", neigh_pattern = "[^\\]%s" },
-      ["["] = { action = "open", pair = "[]", neigh_pattern = "[^\\]%s" },
-      ["{"] = { action = "open", pair = "{}", neigh_pattern = "[^\\]%s" },
+      ["("] = { action = "open", pair = "()", neigh_pattern = "[^\\][%s%)%]%}]" },
+      ["["] = { action = "open", pair = "[]", neigh_pattern = "[^\\][%s%)%]%}]" },
+      ["{"] = { action = "open", pair = "{}", neigh_pattern = "[^\\][%s%)%]%}]" },
       -- This is default (prevents the action if the cursor is just next to a "\").
       [")"] = { action = "close", pair = "()", neigh_pattern = "[^\\]." },
       ["]"] = { action = "close", pair = "[]", neigh_pattern = "[^\\]." },
