@@ -11,9 +11,9 @@ return {
       ["]"] = { action = "close", pair = "[]", neigh_pattern = "[^\\]." },
       ["}"] = { action = "close", pair = "{}", neigh_pattern = "[^\\]." },
       -- Prevents the action if the cursor is just before or next to any character.
-      ['"'] = { action = "closeopen", pair = '""', neigh_pattern = "%s%s", register = { cr = false } },
-      ["'"] = { action = "closeopen", pair = "''", neigh_pattern = "%s%s", register = { cr = false } },
-      ["`"] = { action = "closeopen", pair = "``", neigh_pattern = "%s%s", register = { cr = false } },
+      ['"'] = { action = "closeopen", pair = '""', neigh_pattern = "[^%w][^%w]", register = { cr = false } },
+      ["'"] = { action = "closeopen", pair = "''", neigh_pattern = "[^%w][^%w]", register = { cr = false } },
+      ["`"] = { action = "closeopen", pair = "``", neigh_pattern = "[^%w][^%w]", register = { cr = false } },
     },
   },
 }
