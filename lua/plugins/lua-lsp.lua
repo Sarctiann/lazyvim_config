@@ -18,14 +18,18 @@ return {
           workspace = {
             checkThirdParty = true,
             library = {
-              -- vim.env.VIMRUNTIME,
+              vim.env.VIMRUNTIME,
               path,
             },
           },
         })
       end,
       settings = {
-        Lua = {},
+        Lua = {
+          diagnostics = {
+            globals = { "vim", "LazyVim" },
+          },
+        },
       },
     })
   end,
