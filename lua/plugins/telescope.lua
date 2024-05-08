@@ -11,15 +11,23 @@ return {
     local open_selected_with_trouble = function(...)
       return require("trouble.providers.telescope").open_selected_with_trouble(...)
     end
-    local find_files_no_ignore = function()
+    local live_grep_all = function()
       local action_state = require("telescope.actions.state")
       local line = action_state.get_current_line()
-      LazyVim.telescope("find_files", { no_ignore = true, default_text = line })()
+      LazyVim.telescope("live_grep", {
+        hidden = true,
+        no_ignore = true,
+        default_text = line,
+      })()
     end
-    local find_files_with_hidden = function()
+    local find_files_all = function()
       local action_state = require("telescope.actions.state")
       local line = action_state.get_current_line()
-      LazyVim.telescope("find_files", { hidden = true, default_text = line })()
+      LazyVim.telescope("find_files", {
+        hidden = true,
+        no_ignore = true,
+        default_text = line,
+      })()
     end
 
     return {
@@ -43,8 +51,8 @@ return {
           i = {
             ["<c-t>"] = open_with_trouble,
             ["<M-t>"] = open_selected_with_trouble,
-            ["<M-i>"] = find_files_no_ignore,
-            ["<M-h>"] = find_files_with_hidden,
+            ["<M-i>"] = live_grep_all,
+            ["<M-h>"] = find_files_all,
             ["<C-Down>"] = actions.cycle_history_next,
             ["<C-Up>"] = actions.cycle_history_prev,
             ["<C-f>"] = actions.preview_scrolling_down,
@@ -78,7 +86,6 @@ return {
       },
       pickers = {
         find_files = {
-          hidden = true,
           -- needed to exclude some files & dirs from general search
           -- when not included or specified in .gitignore
           find_command = {
