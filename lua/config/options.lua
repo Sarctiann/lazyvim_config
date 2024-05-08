@@ -2,6 +2,8 @@
 -- Default options that are always set: https://github.com/LazyVim/LazyVim/blob/main/lua/lazyvim/config/options.lua
 -- Add any additional options here
 
+vim.opt.relativenumber = false
+
 -- Set cursor colors
 vim.api.nvim_command("highlight CursorL guibg=#9ece6a")
 vim.api.nvim_command("highlight VisualCursor guibg=#bb9af7")
