@@ -1,5 +1,6 @@
 return {
   "echasnovski/mini.pairs",
+  event = "VeryLazy",
   opts = {
     mappings = {
       -- Prevents the action if the cursor is just before any character or next to a "\".

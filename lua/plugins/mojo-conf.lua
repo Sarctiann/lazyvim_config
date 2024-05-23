@@ -9,5 +9,6 @@ require("nvim-web-devicons").set_icon({
 
 return {
   "neovim/nvim-lspconfig",
+  event = "VeryLazy",
   opts = { servers = { mojo = {} } },
 }
