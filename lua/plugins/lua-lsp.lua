@@ -1,6 +1,5 @@
 return {
   "luals/lua-language-server",
-  event = "VeryLazy",
   config = function()
     require("lspconfig").lua_ls.setup({
       on_init = function(client)
