@@ -17,16 +17,16 @@ return {
             library = {
               vim.env.VIMRUNTIME,
               path,
+              "~/.local/share/nvim/lazy/luvit-meta/library",
             },
+          },
+          diagnostics = {
+            globals = { "vim", "LazyVim" },
           },
         })
       end,
       settings = {
-        Lua = {
-          diagnostics = {
-            globals = { "vim", "LazyVim" },
-          },
-        },
+        Lua = {},
       },
     })
   end,
