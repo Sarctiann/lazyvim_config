@@ -52,7 +52,5 @@ vim.keymap.set("n", "<c-_>", lazyterm, { desc = "which_key_ignore" })
 
 -- Remove/Replace some default keymaps
 
--- oneline
-vim.keymap.set("n", "J", "", { desc = "which_key_ignore", noremap = false })
--- maximize toggle
-vim.keymap.set("n", "<leader>m", "", { desc = "Minimap options (codewindow", noremap = false })
+-- maximize toggle (is handled by the plugin)
+vim.keymap.set("n", "<leader>m", "", { desc = "Minimap options (codewindow)", noremap = false })
