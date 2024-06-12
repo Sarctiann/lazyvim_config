@@ -20,7 +20,7 @@ return {
           week_header = { enable = true, append = vim.split(sub_header, "\n") },
           center = {
             {
-              action = LazyVim.telescope("files"),
+              action = LazyVim.pick("files"),
               desc = " Find file",
               icon = " ",
               key = "f",
