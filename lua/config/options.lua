@@ -19,3 +19,6 @@ vim.opt.colorcolumn = "80"
 
 -- For Lua development
 vim.g.lazydev_enabled = false
+
+-- Spanish and English spell check for Markdown.
+vim.opt.spelllang = "en_us,es"
