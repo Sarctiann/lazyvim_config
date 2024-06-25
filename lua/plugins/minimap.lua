@@ -5,7 +5,6 @@ return {
     codewindow.setup({
       auto_enable = true,
       minimap_width = 12,
-      show_cursor = false,
       window_border = "rounded",
       exclude_filetypes = { "NvimTree", "minimap", "dashboard", "help" },
     })
