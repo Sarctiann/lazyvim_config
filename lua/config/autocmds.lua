@@ -16,3 +16,11 @@ vim.api.nvim_create_autocmd({ "TermLeave" }, {
     vim.opt_local.winblend = 10
   end,
 })
+
+-- Restore the cursor
+vim.api.nvim_create_autocmd({ "VimLeave" }, {
+  group = vim.api.nvim_create_augroup("Custom-RestoreCursor", { clear = true }),
+  callback = function()
+    vim.opt_local.guicursor = "a:ver30-blinkon100"
+  end,
+})
