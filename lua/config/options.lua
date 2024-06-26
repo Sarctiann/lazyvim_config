@@ -12,7 +12,8 @@ vim.api.nvim_command("highlight ReplaceCursor guibg=#f7768e")
 vim.api.nvim_set_hl(0, "CodewindowBorder", { fg = "darkCyan" })
 
 -- Apply confs
-vim.opt_local.guicursor = "n-c-ci-cr-sm:block,i:ver30-CursorL,v-ve-o:hor30-VisualCursor,r:hor50-ReplaceCursor"
+vim.opt_local.guicursor =
+  "n-c-ci-cr-sm:block,i:ver30-CursorL,v-ve-o:hor30-VisualCursor,r:hor50-ReplaceCursor,a:Blinkon100"
 
 -- Set colorcolumn
 vim.opt.colorcolumn = "80"
