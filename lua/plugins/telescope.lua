@@ -1,5 +1,32 @@
 -- Complete configuration for telescope here: https://www.lazyvim.org/plugins/editor#telescopenvim-optional
 
+local TELESCOPE_IGNORE = {
+  ".venv/*",
+  "venv/*",
+  "__pycache__/*",
+  "node_modules/*",
+  "*.git/*",
+  "*.idea/*",
+  "*.vscode/*",
+  "*build/*",
+  "*dist/*",
+  "*.next/*",
+  "yarn.lock",
+  "package-lock.json",
+}
+
+local function map(tbl, func)
+  local newt = {}
+  for i, v in ipairs(tbl) do
+    newt[i] = func(v)
+  end
+  return newt
+end
+
+local telescope_ignore = map(TELESCOPE_IGNORE, function(entry)
+  return "--glob=!" .. entry
+end)
+
 return {
   "nvim-telescope/telescope.nvim",
   opts = function()
@@ -75,14 +102,7 @@ return {
           "--smart-case", -- Smart case search
 
           -- Exclude some patterns from search
-          "--glob=!**/.git/*",
-          "--glob=!**/.idea/*",
-          "--glob=!**/.vscode/*",
-          "--glob=!**/build/*",
-          "--glob=!**/dist/*",
-          "--glob=!**/.next/*",
-          "--glob=!**/yarn.lock",
-          "--glob=!**/package-lock.json",
+          unpack(telescope_ignore),
         },
       },
       pickers = {
@@ -94,14 +114,8 @@ return {
             "-u",
             "--files",
             "--hidden",
-            "--glob=!**/.git/*",
-            "--glob=!**/.idea/*",
-            "--glob=!**/.vscode/*",
-            "--glob=!**/build/*",
-            "--glob=!**/dist/*",
-            "--glob=!**/.next/*",
-            "--glob=!**/yarn.lock",
-            "--glob=!**/package-lock.json",
+            -- Exclude some patterns from search
+            unpack(telescope_ignore),
           },
         },
       },
