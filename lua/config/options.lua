@@ -23,3 +23,6 @@ vim.g.lazydev_enabled = false
 
 -- Spanish and English spell check for Markdown.
 vim.opt.spelllang = "en_us,es"
+
+-- Add Transparency to floating windows
+vim.opt_local.winblend = 10

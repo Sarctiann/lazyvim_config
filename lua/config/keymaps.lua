@@ -37,14 +37,14 @@ local lazyterm = function()
   LazyVim.terminal(nil, {
     cwd = LazyVim.root(),
     border = "rounded",
-    margin = { top = 3, left = 7, right = 7, bottom = 3 },
+    margin = { top = 3, left = 5, right = 5, bottom = 3 },
   })
 end
 vim.keymap.set("n", "<leader>ft", lazyterm, { desc = "Terminal (Root Dir)" })
 vim.keymap.set("n", "<leader>fT", function()
   LazyVim.terminal(nil, {
     border = "rounded",
-    margin = { top = 3, left = 7, right = 7, bottom = 3 },
+    margin = { top = 3, left = 5, right = 5, bottom = 3 },
   })
 end, { desc = "Terminal (cwd)" })
 vim.keymap.set("n", "<c-/>", lazyterm, { desc = "Terminal (Root Dir)" })

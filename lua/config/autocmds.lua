@@ -7,13 +7,14 @@ local FloatTransparency = vim.api.nvim_create_augroup("Custom-FloatTransparency"
 vim.api.nvim_create_autocmd({ "TermEnter" }, {
   group = FloatTransparency,
   callback = function()
-    vim.opt_local.winblend = 0
+    vim.opt_local.winblend = 10
   end,
 })
+
 vim.api.nvim_create_autocmd({ "TermLeave" }, {
   group = FloatTransparency,
   callback = function()
-    vim.opt_local.winblend = 10
+    vim.opt_local.winblend = 30
   end,
 })
 
