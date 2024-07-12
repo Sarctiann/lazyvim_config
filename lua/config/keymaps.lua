@@ -54,3 +54,20 @@ vim.keymap.set("n", "<c-_>", lazyterm, { desc = "which_key_ignore" })
 
 -- maximize toggle (is handled by the plugin)
 vim.keymap.set("n", "<leader>m", "", { desc = "Minimap options (codewindow)", noremap = false })
+
+-- Added keymap to open lazyDocker
+vim.keymap.set("n", "<leader>d", function()
+  local result = ""
+  local handle = io.popen([[bash -c 'if ! type "LazyDocker" &> /dev/null; then
+      echo "error"
+    fi']])
+  if handle then
+    result = handle:read("*a")
+    handle:close()
+  end
+  if result == "error\n" then
+    print("You need to install LazyDocker to use this feature")
+  else
+    LazyVim.terminal("LazyDocker")
+  end
+end, { desc = "Open LazyDocker (external)" })
