@@ -12,7 +12,7 @@ vim.api.nvim_command("highlight ReplaceCursor guibg=#f7768e")
 vim.api.nvim_set_hl(0, "CodewindowBorder", { fg = "darkCyan" })
 
 -- Set a new color group for unused code
-vim.api.nvim_set_hl(0, "UnusedCode", { fg = "NONE", bg = "#003030" })
+vim.api.nvim_set_hl(0, "UnusedCode", { fg = "NONE", bg = "#004050" })
 
 -- Apply confs
 vim.opt_local.guicursor =
