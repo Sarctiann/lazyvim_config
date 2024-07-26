@@ -25,3 +25,11 @@ vim.api.nvim_create_autocmd({ "VimLeave" }, {
     vim.opt_local.guicursor = "a:ver30-blinkon100"
   end,
 })
+
+-- Change the color of unused code highlight
+vim.api.nvim_create_autocmd({ "DiagnosticChanged" }, {
+  group = vim.api.nvim_create_augroup("Custom-ResetUnusedCodeHighlight", { clear = true }),
+  callback = function()
+    vim.api.nvim_command("highlight! link DiagnosticUnnecessary UnusedCode")
+  end,
+})

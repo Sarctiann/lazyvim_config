@@ -11,6 +11,9 @@ vim.api.nvim_command("highlight ReplaceCursor guibg=#f7768e")
 -- minimap border color
 vim.api.nvim_set_hl(0, "CodewindowBorder", { fg = "darkCyan" })
 
+-- Set a new color group for unused code
+vim.api.nvim_set_hl(0, "UnusedCode", { fg = "NONE", bg = "#003030" })
+
 -- Apply confs
 vim.opt_local.guicursor =
   "n-c-ci-cr-sm:block,i:ver30-CursorL,v-ve-o:hor30-VisualCursor,r:hor50-ReplaceCursor,a:Blinkon100"
