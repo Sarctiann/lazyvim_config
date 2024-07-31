@@ -41,7 +41,7 @@ return {
     local live_grep_all = function()
       local action_state = require("telescope.actions.state")
       local line = action_state.get_current_line()
-      LazyVim.telescope("live_grep", {
+      LazyVim.pick("live_grep", {
         hidden = true,
         no_ignore = true,
         default_text = line,
@@ -50,7 +50,7 @@ return {
     local find_files_all = function()
       local action_state = require("telescope.actions.state")
       local line = action_state.get_current_line()
-      LazyVim.telescope("find_files", {
+      LazyVim.pick("find_files", {
         hidden = true,
         no_ignore = true,
         default_text = line,
