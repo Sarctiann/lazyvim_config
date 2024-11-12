@@ -8,7 +8,7 @@ return {
     trigger_events = {
       immediate_save = { "BufLeave" },
       defer_save = { "FocusLost" },
-      cancel_defered_save = { "BufLeave" },
+      cancel_deferred_save = { "BufLeave" },
     },
     debounce_delay = 100,
   },

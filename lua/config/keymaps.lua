@@ -32,23 +32,23 @@ end
 vim.keymap.set("n", "<leader>fm", open_or_create_new_note, { desc = "Open or create Today's md-note" })
 
 -- floating terminal
-
-local lazyterm = function()
-  LazyVim.terminal(nil, {
-    cwd = LazyVim.root(),
-    border = "rounded",
-    margin = { top = 3, left = 5, right = 5, bottom = 3 },
-  })
-end
-vim.keymap.set("n", "<leader>ft", lazyterm, { desc = "Terminal (Root Dir)" })
-vim.keymap.set("n", "<leader>fT", function()
-  LazyVim.terminal(nil, {
-    border = "rounded",
-    margin = { top = 3, left = 5, right = 5, bottom = 3 },
-  })
-end, { desc = "Terminal (cwd)" })
-vim.keymap.set("n", "<c-/>", lazyterm, { desc = "Terminal (Root Dir)" })
-vim.keymap.set("n", "<c-_>", lazyterm, { desc = "which_key_ignore" })
+--
+-- local lazyterm = function()
+--   LazyVim.terminal(nil, {
+--     cwd = LazyVim.root(),
+--     border = "rounded",
+--     margin = { top = 3, left = 5, right = 5, bottom = 3 },
+--   })
+-- end
+-- vim.keymap.set("n", "<leader>ft", lazyterm, { desc = "Terminal (Root Dir)" })
+-- vim.keymap.set("n", "<leader>fT", function()
+--   LazyVim.terminal(nil, {
+--     border = "rounded",
+--     margin = { top = 3, left = 5, right = 5, bottom = 3 },
+--   })
+-- end, { desc = "Terminal (cwd)" })
+-- vim.keymap.set("n", "<c-/>", lazyterm, { desc = "Terminal (Root Dir)" })
+-- vim.keymap.set("n", "<c-_>", lazyterm, { desc = "which_key_ignore" })
 
 -- Remove/Replace some default keymaps
 
