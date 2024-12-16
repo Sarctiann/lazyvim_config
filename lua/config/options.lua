@@ -28,4 +28,4 @@ vim.g.lazydev_enabled = false
 vim.opt.spelllang = "en_us,es"
 
 -- Add Transparency to floating windows
-vim.opt_local.winblend = 10
+vim.opt.winblend = 10
