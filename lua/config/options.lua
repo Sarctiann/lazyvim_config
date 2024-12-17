@@ -8,8 +8,9 @@ vim.opt.relativenumber = false
 vim.api.nvim_command("highlight CursorL guibg=#9ece6a")
 vim.api.nvim_command("highlight VisualCursor guibg=#bb9af7")
 vim.api.nvim_command("highlight ReplaceCursor guibg=#f7768e")
+
 -- minimap border color
-vim.api.nvim_set_hl(0, "CodewindowBorder", { fg = "darkCyan" })
+vim.api.nvim_set_hl(0, "CodewindowBackground", { bg = "#000a12" })
 
 -- Set a new color group for unused code
 vim.api.nvim_set_hl(0, "UnusedCode", { fg = "NONE", bg = "#004050" })
@@ -20,9 +21,6 @@ vim.opt_local.guicursor =
 
 -- Set colorcolumn
 vim.opt.colorcolumn = "80"
-
--- For Lua development
-vim.g.lazydev_enabled = false
 
 -- Spanish and English spell check for Markdown.
 vim.opt.spelllang = "en_us,es"

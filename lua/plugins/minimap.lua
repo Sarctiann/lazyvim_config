@@ -3,9 +3,9 @@ return {
   config = function()
     local codewindow = require("codewindow")
     codewindow.setup({
-      auto_enable = false,
+      auto_enable = true,
       minimap_width = 12,
-      window_border = "rounded",
+      window_border = "none",
       exclude_filetypes = { "NvimTree", "minimap", "dashboard", "help" },
     })
     codewindow.apply_default_keybinds()
