@@ -5,7 +5,7 @@ return {
     codewindow.setup({
       auto_enable = true,
       minimap_width = 12,
-      window_border = "none",
+      window_border = "solid",
       exclude_filetypes = { "NvimTree", "minimap", "dashboard", "help" },
     })
     codewindow.apply_default_keybinds()
