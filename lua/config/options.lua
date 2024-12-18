@@ -10,8 +10,8 @@ vim.api.nvim_command("highlight VisualCursor guibg=#bb9af7")
 vim.api.nvim_command("highlight ReplaceCursor guibg=#f7768e")
 
 -- minimap colors
-vim.api.nvim_set_hl(0, "CodewindowBorder", { bg = "#000a12" })
-vim.api.nvim_set_hl(0, "CodewindowBackground", { bg = "#000a12" })
+vim.api.nvim_set_hl(0, "CodewindowBorder", { bg = "#000e15" })
+vim.api.nvim_set_hl(0, "CodewindowBackground", { bg = "#000e15" })
 
 -- Set a new color group for unused code
 vim.api.nvim_set_hl(0, "UnusedCode", { fg = "NONE", bg = "#004050" })
