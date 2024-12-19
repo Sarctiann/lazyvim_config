@@ -16,7 +16,7 @@ return {
       -- use_treesitter = true, -- Use nvim-treesitter to highlight the code
       -- use_git = true, -- Show small dots to indicate git additions and deletions
       -- width_multiplier = 4, -- How many characters one dot represents
-      width_multiplier = 6,
+      width_multiplier = 5,
       -- z_index = 1, -- The z-index the floating window will be on
       -- show_cursor = true, -- Show the cursor position in the minimap
       -- screen_bounds = "lines", -- How the visible area is displayed, "lines": lines above and below, "background": background color
