@@ -27,4 +27,4 @@ vim.opt.colorcolumn = "80"
 vim.opt.spelllang = "en_us,es"
 
 -- Add Transparency to floating windows
-vim.opt.winblend = 10
+vim.opt.winblend = 15
