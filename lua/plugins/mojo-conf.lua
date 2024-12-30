@@ -1,13 +1,15 @@
-local project_root = vim.fn.getcwd()
-local lsp_path = project_root .. "/.magic/envs/default/bin/mojo-lsp-server"
-local libs_path = project_root .. "/.magic/envs/default/lib/mojo"
-
 return {
   "neovim/nvim-lspconfig",
   opts = {
     servers = {
       mojo = {
-        cmd = { lsp_path, "-I", libs_path },
+        -- This is required if you use magic-CLI instead of modular-CLI
+        on_new_config = function()
+          local result = vim.fn.system("magic shell")
+          if vim.v.shell_error ~= 0 then
+            vim.notify("Error running `magic shell`: " .. result, vim.log.levels.ERROR)
+          end
+        end,
       },
     },
   },
