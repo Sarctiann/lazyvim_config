@@ -1,14 +1,20 @@
+local win_width = vim.o.columns
+local logo_padding = string.rep(" ", math.floor(win_width / 4))
+
 local logo = [[
-███████╗ █████╗ ██████╗  ██████╗     ██╗   ██╗██╗███╗   ███╗
-██╔════╝██╔══██╗██╔══██╗██╔════╝     ██║   ██║██║████╗ ████║
-███████╗███████║██████╔╝██║          ██║   ██║██║██╔████╔██║
-╚════██║██╔══██║██╔══██╗██║          ╚██╗ ██╔╝██║██║╚██╔╝██║
-███████║██║  ██║██║  ██║╚██████╗  ██╗ ╚████╔╝ ██║██║ ╚═╝ ██║
-╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝  ╚═╝  ╚═══╝  ╚═╝╚═╝     ╚═╝
-{greet}
+{padding} ███████╗ █████╗ ██████╗  ██████╗     ███╗   ██╗██╗   ██╗██╗███╗   ███╗
+{padding} ██╔════╝██╔══██╗██╔══██╗██╔════╝     ████╗  ██║██║   ██║██║████╗ ████║
+{padding} ███████╗███████║██████╔╝██║          ██╔██╗ ██║██║   ██║██║██╔████╔██║
+{padding} ╚════██║██╔══██║██╔══██╗██║          ██║╚██╗██║╚██╗ ██╔╝██║██║╚██╔╝██║
+{padding} ███████║██║  ██║██║  ██║╚██████╗  ██╗██║ ╚████║ ╚████╔╝ ██║██║ ╚═╝ ██║
+{padding} ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝  ╚═╝╚═╝  ╚═══╝  ╚═══╝  ╚═╝╚═╝     ╚═╝
+{padding} {greet}
 ]]
 
-local sub_header = "\n\nWelcome " .. os.getenv("USER"):lower():gsub("^%l", string.upper) .. "!" .. "\n"
+local function get_day()
+  return ", Have a nice " .. os.date("%A") .. "!\n"
+end
+local sub_header = "\n\nWelcome " .. os.getenv("USER"):lower():gsub("^%l", string.upper) .. get_day()
 
 return {
   "snacks.nvim",
@@ -18,7 +24,7 @@ return {
         pick = function(cmd, opts)
           return LazyVim.pick(cmd, opts)()
         end,
-        header = (logo:gsub("{greet}", sub_header)),
+        header = (logo:gsub("{(%w+)}", { greet = sub_header, padding = logo_padding })),
         -- stylua: ignore
         ---@type snacks.dashboard.Item[]
         keys = {
