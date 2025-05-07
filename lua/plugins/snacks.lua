@@ -44,22 +44,8 @@ return {
         { section = "keys", gap = 1, padding = 1 },
         {
           pane = 2,
-          icon = string.rep("\n", 8) .. string.rep(" ", 20) .. " ",
-          title = string.rep("\n", 8) .. "Git Status\n",
-          section = "terminal",
-          enabled = function()
-            return Snacks.git.get_root() ~= nil
-          end,
-          cmd = "git status --short --branch --renames",
-          height = 7,
-          padding = 1,
-          indent = 3,
-          ttl = 5 * 60,
-        },
-        {
-          pane = 2,
-          icon = string.rep(" ", 20) .. " ",
-          title = "Projects\n",
+          icon = string.rep("\n", 8) .. string.rep(" ", 20) .. " ",
+          title = string.rep("\n", 8) .. "Projects\n",
           section = "projects",
           indent = 2,
           padding = 1,
@@ -71,6 +57,20 @@ return {
           section = "recent_files",
           indent = 2,
           padding = 1,
+        },
+        {
+          pane = 2,
+          icon = string.rep(" ", 20) .. " ",
+          title = "Git Status\n",
+          section = "terminal",
+          enabled = function()
+            return Snacks.git.get_root() ~= nil
+          end,
+          cmd = "git status --short --branch --renames",
+          height = 7,
+          padding = 1,
+          indent = 3,
+          ttl = 5 * 60,
         },
         { section = "startup" },
       },
