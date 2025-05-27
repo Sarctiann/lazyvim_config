@@ -2,8 +2,6 @@
 -- Default keymaps that are always set: https://github.com/LazyVim/LazyVim/blob/main/lua/lazyvim/config/keymaps.lua
 -- Add any additional keymaps here
 
-vim.keymap.set("n", "<C-t>", "<cmd>Telescope<CR>", { desc = "Open Telescope" })
-
 -- Move Line with arrows ([warp]: Go to settings/features and set left option as Meta).
 
 vim.keymap.set("n", "<M-Down>", "<cmd>m .+1<cr>==", { desc = "Move down" })
