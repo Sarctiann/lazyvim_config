@@ -81,6 +81,21 @@ return {
           "delete_dir",
           "bash", -- Built-in terminal access
         },
+        windows = {
+          ---@type "right" | "left" | "top" | "bottom"
+          position = "right", -- the position of the sidebar
+          wrap = true, -- similar to vim.o.wrap
+          width = 35,
+          sidebar_header = {
+            enabled = true, -- true, false to enable/disable the header
+            align = "left", -- left, center, right for title
+            rounded = true,
+          },
+          input = {
+            prefix = "> ",
+            height = 18, -- Height of the input window in vertical layout
+          },
+        },
       })
     end,
     dependencies = {
