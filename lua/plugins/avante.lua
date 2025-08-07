@@ -69,11 +69,7 @@ return {
           }
         end,
         provider = "copilot", -- Set provider to copilot
-        providers = {
-          copilot = {
-            model = "claude-3.7-sonnet",
-          },
-        },
+        auto_suggestions_provider = "copilot",
         disabled_tools = {
           "list_files", -- Built-in file operations
           "search_files",
@@ -84,6 +80,7 @@ return {
           "create_dir",
           "rename_dir",
           "delete_dir",
+          -- "think", -- To speed up the response time
           "bash", -- Built-in terminal access
         },
         windows = {
@@ -98,7 +95,7 @@ return {
           },
           input = {
             prefix = "> ",
-            height = 18, -- Height of the input window in vertical layout
+            height = 15, -- Height of the input window in vertical layout
           },
         },
       })
