@@ -71,7 +71,7 @@ return {
         provider = "copilot", -- Set provider to copilot
         providers = {
           copilot = {
-            model = "claude-3.7-sonnet",
+            model = "copilot/claude-3.7-sonnet",
           },
         },
         disabled_tools = {
@@ -98,7 +98,7 @@ return {
           },
           input = {
             prefix = "> ",
-            height = 18, -- Height of the input window in vertical layout
+            height = 15, -- Height of the input window in vertical layout
           },
         },
       })
