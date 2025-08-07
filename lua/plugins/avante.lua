@@ -71,7 +71,7 @@ return {
         provider = "copilot", -- Set provider to copilot
         providers = {
           copilot = {
-            model = "claude-3.7-sonnet-thought",
+            model = "claude-3.7-sonnet",
           },
         },
         disabled_tools = {

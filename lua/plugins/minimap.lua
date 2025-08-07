@@ -5,7 +5,7 @@ return {
     codewindow.setup({
       -- active_in_terminals = false, -- Should the minimap activate for terminal buffers
       -- auto_enable = false, -- Automatically open the minimap when entering a (non-excluded) buffer (accepts a table of filetypes)
-      auto_enable = true,
+      auto_enable = false,
       -- exclude_filetypes = { "help" }, -- Choose certain filetypes to not show minimap on
       exclude_filetypes = { "NvimTree", "minimap", "dashboard", "help" },
       -- max_minimap_height = nil, -- The maximum height the minimap can take (including borders)
