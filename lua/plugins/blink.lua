@@ -17,6 +17,7 @@ return {
     dependencies = {
       "rafamadriz/friendly-snippets",
       -- add blink.compat to dependencies
+      "moyiz/blink-emoji.nvim",
       {
         "saghen/blink.compat",
         optional = true, -- make optional so it's only enabled if any extras need it
@@ -72,7 +73,35 @@ return {
         -- adding any nvim-cmp sources here will enable them
         -- with blink.compat
         compat = {},
-        default = { "lsp", "path", "snippets", "buffer" },
+        default = { "lsp", "path", "snippets", "buffer", "emoji" },
+        providers = {
+          emoji = {
+            module = "blink-emoji",
+            name = "Emoji",
+            score_offset = 15, -- Tune by preference
+            opts = {
+              insert = true, -- Insert emoji (default) or complete its name
+              ---@type string|table|fun():table
+              trigger = function()
+                return { ":" }
+              end,
+            },
+            should_show_items = function()
+              return vim.tbl_contains({
+                "gitcommit",
+                "markdown",
+                "yaml",
+                "text",
+                "json",
+                "html",
+                "lua",
+                "python",
+                "javascript",
+                "typescript",
+              }, vim.o.filetype)
+            end,
+          },
+        },
       },
 
       cmdline = {
