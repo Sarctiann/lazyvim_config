@@ -14,7 +14,7 @@ vim.api.nvim_set_hl(0, "CodewindowBorder", { bg = "#000e15" })
 vim.api.nvim_set_hl(0, "CodewindowBackground", { bg = "#000e15" })
 
 -- Set a new color group for unused code
-vim.api.nvim_set_hl(0, "UnusedCode", { fg = "NONE", bg = "#004050" })
+vim.api.nvim_set_hl(0, "UnusedCode", { fg = "darkcyan", bg = "#003040" })
 
 -- New group for `flash.nvim` pluggin
 vim.api.nvim_set_hl(0, "NewFlashLabel", { fg = "#ccfaff", bg = "#7f0044", bold = true })
