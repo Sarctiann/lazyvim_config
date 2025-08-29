@@ -91,3 +91,10 @@ vim.keymap.set({ "n", "v" }, "<leader>ct", function()
 
   vim.notify("JSON to TS types conversion applied", vim.log.levels.INFO)
 end, { desc = "Convert JSON to TypeScript types" })
+
+vim.keymap.set(
+  "n",
+  "<leader>fw",
+  "<cmd>e ~/.config/wezterm/local_values.lua<cr>",
+  { desc = "Open Wezterm local config" }
+)
