@@ -111,7 +111,7 @@ return {
 
       "hrsh7th/nvim-cmp", -- autocompletion for avante commands and mentions
 
-      "echasnovski/mini.pick", -- for file_selector provider mini.pick
+      "nvim-mini/mini.pick", -- for file_selector provider mini.pick
       -- "nvim-telescope/telescope.nvim", -- for file_selector provider telescope
       -- "ibhagwan/fzf-lua", -- for file_selector provider fzf
 
