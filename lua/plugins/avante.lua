@@ -1,3 +1,5 @@
+-- ⚠️ Avante requires you to run: `:AvanteBuild`
+
 return {
   {
     "saghen/blink.cmp",
@@ -44,14 +46,8 @@ return {
     "yetone/avante.nvim",
     -- if you want to build from source then do `make BUILD_FROM_SOURCE=true`
     -- ⚠️ must add this setting! ! !
-    build = function()
-      -- conditionally use the correct build system for the current OS
-      if vim.fn.has("win32") == 1 then
-        return "powershell -ExecutionPolicy Bypass -File Build.ps1 -BuildFromSource false"
-      else
-        return "make"
-      end
-    end,
+    build = vim.fn.has("win32") ~= 0 and "powershell -ExecutionPolicy Bypass -File Build.ps1 -BuildFromSource false"
+      or "make",
     event = "VeryLazy",
     version = false, -- Never set this value to "*"! Never!
     config = function()
@@ -80,7 +76,6 @@ return {
           "create_dir",
           "rename_dir",
           "delete_dir",
-          -- "think", -- To speed up the response time
           "bash", -- Built-in terminal access
         },
         windows = {
