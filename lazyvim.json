@@ -17,7 +17,6 @@
     "lazyvim.plugins.extras.lang.yaml",
     "lazyvim.plugins.extras.lang.zig",
     "lazyvim.plugins.extras.ui.mini-indentscope",
-    "lazyvim.plugins.extras.util.dot",
     "lazyvim.plugins.extras.vscode"
   ],
   "install_version": 7,

@@ -67,16 +67,16 @@ return {
         provider = "copilot", -- Set provider to copilot
         auto_suggestions_provider = "copilot",
         disabled_tools = {
-          "list_files", -- Built-in file operations
-          "search_files",
-          "read_file",
-          "create_file",
-          "rename_file",
-          "delete_file",
-          "create_dir",
-          "rename_dir",
-          "delete_dir",
-          "bash", -- Built-in terminal access
+          -- "list_files", -- Built-in file operations
+          -- "search_files",
+          -- "read_file",
+          -- "create_file",
+          -- "rename_file",
+          -- "delete_file",
+          -- "create_dir",
+          -- "rename_dir",
+          -- "delete_dir",
+          -- "bash", -- Built-in terminal access
         },
         windows = {
           ---@type "right" | "left" | "top" | "bottom"
