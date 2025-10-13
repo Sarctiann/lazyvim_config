@@ -65,6 +65,11 @@ return {
           }
         end,
         provider = "copilot", -- Set provider to copilot
+        providers = {
+          copilot = {
+            model = "claude-3.7-sonnet",
+          },
+        },
         auto_suggestions_provider = "copilot",
         disabled_tools = {
           -- "list_files", -- Built-in file operations

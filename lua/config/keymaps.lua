@@ -30,10 +30,12 @@ end
 vim.keymap.set("n", "<leader>fm", open_or_create_new_note, { desc = "Open or create Today's md-note" })
 
 -- maximize toggle (is handled by the plugin)
-vim.keymap.set("n", "<leader>m", "", { desc = "Minimap options (codewindow)", noremap = false })
+-- vim.keymap.set("n", "<leader>m", "", { desc = "Minimap options (codewindow)", noremap = false })
+
+vim.keymap.set("n", "<leader>o", "", { desc = "+open", noremap = false })
 
 -- Added keymap to open lazyDocker
-vim.keymap.set("n", "<leader>d", function()
+vim.keymap.set("n", "<leader>od", function()
   local result = ""
   local handle = io.popen([[bash -c 'if ! type "LazyDocker" &> /dev/null; then
       echo "error"

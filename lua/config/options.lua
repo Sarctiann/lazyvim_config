@@ -21,7 +21,7 @@ vim.api.nvim_set_hl(0, "NewFlashLabel", { fg = "#ccfaff", bg = "#7f0044", bold =
 
 -- Apply confs
 vim.opt_local.guicursor =
-  "n-c-ci-cr-sm:block,i:ver30-CursorL,v-ve-o:hor30-VisualCursor,r:hor50-ReplaceCursor,a:Blinkon100"
+  "n-c-ci-cr-sm:block,i:ver30-CursorL,v-ve-o:hor30-VisualCursor,r:hor50-ReplaceCursor,a:blinkon100"
 
 -- Set colorcolumn
 vim.opt.colorcolumn = "80"
