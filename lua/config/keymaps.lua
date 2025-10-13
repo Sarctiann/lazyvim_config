@@ -29,27 +29,6 @@ end
 
 vim.keymap.set("n", "<leader>fm", open_or_create_new_note, { desc = "Open or create Today's md-note" })
 
--- floating terminal
---
--- local lazyterm = function()
---   LazyVim.terminal(nil, {
---     cwd = LazyVim.root(),
---     border = "rounded",
---     margin = { top = 3, left = 5, right = 5, bottom = 3 },
---   })
--- end
--- vim.keymap.set("n", "<leader>ft", lazyterm, { desc = "Terminal (Root Dir)" })
--- vim.keymap.set("n", "<leader>fT", function()
---   LazyVim.terminal(nil, {
---     border = "rounded",
---     margin = { top = 3, left = 5, right = 5, bottom = 3 },
---   })
--- end, { desc = "Terminal (cwd)" })
--- vim.keymap.set("n", "<c-/>", lazyterm, { desc = "Terminal (Root Dir)" })
--- vim.keymap.set("n", "<c-_>", lazyterm, { desc = "which_key_ignore" })
-
--- Remove/Replace some default keymaps
-
 -- maximize toggle (is handled by the plugin)
 vim.keymap.set("n", "<leader>m", "", { desc = "Minimap options (codewindow)", noremap = false })
 
@@ -66,6 +45,7 @@ vim.keymap.set("n", "<leader>d", function()
   if result == "error\n" then
     print("You need to install LazyDocker to use this feature")
   else
+    ---@diagnostic disable-next-line
     LazyVim.terminal("LazyDocker")
   end
 end, { desc = "Open LazyDocker (external)" })
@@ -94,7 +74,7 @@ end, { desc = "Convert JSON to TypeScript types" })
 
 vim.keymap.set(
   "n",
-  "<leader>fw",
-  "<cmd>e ~/.config/wezterm/local_values.lua<cr>",
-  { desc = "Open Wezterm local config" }
+  "<leader>fC",
+  "<cmd>e ~/.config/ghostty/config | e ~/.config/ghostty/local_config<cr>",
+  { desc = "Open Ghostty local config" }
 )
