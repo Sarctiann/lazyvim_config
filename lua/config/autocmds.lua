@@ -15,7 +15,11 @@ vim.api.nvim_create_autocmd({ "CmdlineEnter", "TermEnter", "WinEnter" }, {
   group = cursor_group,
   callback = function(args)
     local event = args.event
-    if event == "WinEnter" and (vim.bo.buftype == "nofile" or vim.bo.buftype == "") then
+
+    if
+      (event == "WinEnter" and (vim.bo.buftype == "nofile" or vim.bo.buftype == ""))
+      and not (vim.bo.ft == "snacks_terminal")
+    then
       return
     end
     vim.opt_local.guicursor = vertical_cursor

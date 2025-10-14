@@ -17,7 +17,7 @@ end
 local sub_header = "\n\nWelcome " .. os.getenv("USER"):lower():gsub("^%l", string.upper) .. get_day()
 
 return {
-  "snacks.nvim",
+  "folke/snacks.nvim",
   opts = {
     dashboard = {
       preset = {
