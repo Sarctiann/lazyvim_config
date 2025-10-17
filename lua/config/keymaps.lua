@@ -13,6 +13,8 @@ vim.keymap.set("i", "<M-Up>", "<esc><cmd>m .-2<cr>==gi", { desc = "Move up" })
 vim.keymap.set("v", "<M-Down>", ":m '>+1<cr>gv=gv", { desc = "Move down" })
 vim.keymap.set("v", "<M-Up>", ":m '<-2<cr>gv=gv", { desc = "Move up" })
 
+vim.keymap.set("n", "<space>bQ", ":bufdo bwipeout<cr>", { desc = "Delete all buffers", silent = true })
+
 local open_or_create_new_note = function()
   local note_name = string.lower(tostring(os.date("%m-%d-%a")))
   local note_file = "./" .. note_name .. ".md"
@@ -59,9 +61,9 @@ vim.keymap.set({ "n", "v" }, "<leader>ct", function()
     [[%s/\v: '.*'/: string/g]],
     [[%s/\v: "[^"]*"/: string/g]],
     [[%s/\vfalse|true/boolean/g]],
-    [[%s/\[\]/Array<unknown>/g]],
-    [[%s/{}/Record<string, unknown>/g]],
-    [[%s/\v\[(\_.+)\]/Array<\1>/g]],
+    [[%s/: \[\]/: Array<unknown>/g]],
+    [[%s/: {}/: Record<string, unknown>/g]],
+    [[%s/\v\[(\_[a-zA-Z]+)\]/Array<\1>/g]],
   }
 
   for _, substitution in ipairs(substitutions) do

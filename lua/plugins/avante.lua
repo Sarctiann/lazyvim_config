@@ -85,7 +85,7 @@ return {
           ---@type "right" | "left" | "top" | "bottom"
           position = "right", -- the position of the sidebar
           wrap = true, -- similar to vim.o.wrap
-          width = 35,
+          -- width = 35,
           sidebar_header = {
             enabled = true, -- true, false to enable/disable the header
             align = "left", -- left, center, right for title
