@@ -61,9 +61,9 @@ vim.keymap.set({ "n", "v" }, "<leader>ct", function()
     [[%s/\v: '.*'/: string/g]],
     [[%s/\v: "[^"]*"/: string/g]],
     [[%s/\vfalse|true/boolean/g]],
-    [[%s/: \[\]/: Array<unknown>/g]],
-    [[%s/: {}/: Record<string, unknown>/g]],
-    [[%s/\v\[(\_[a-zA-Z]+)\]/Array<\1>/g]],
+    [[%s/\[\]/Array<unknown>/g]],
+    [[%s/{}/Record<string, unknown>/g]],
+    [[%s/\v\[(\_.+)\]/Array<\1>/g]],
   }
 
   for _, substitution in ipairs(substitutions) do
