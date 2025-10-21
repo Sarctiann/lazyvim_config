@@ -55,23 +55,40 @@ vim.keymap.set("n", "<leader>od", function()
 end, { desc = "Open LazyDocker (external)" })
 
 vim.keymap.set({ "n", "v" }, "<leader>ct", function()
+  local range_start = nil
+  local range_end = nil
+  local mode = vim.api.nvim_get_mode().mode
+  if mode == "V" or mode == "v" or mode == "" then
+    print("VIS")
+    range_start = vim.fn.line("'<")
+    range_end = vim.fn.line("'>")
+  end
+
   local substitutions = {
-    [[%s/null/unknown/g]],
-    [[%s/\v\d+[;,]/number;/g]],
-    [[%s/\v: '.*'/: string/g]],
-    [[%s/\v: "[^"]*"/: string/g]],
-    [[%s/\vfalse|true/boolean/g]],
-    [[%s/\[\]/Array<unknown>/g]],
-    [[%s/{}/Record<string, unknown>/g]],
-    [[%s/\v\[(\_.+)\]/Array<\1>/g]],
+    [[s/null/unknown/g]],
+    [[s/\v\d+[;,]/number;/g]],
+    [[s/\v: '[^']*'[;,]/: string;/g]],
+    [[s/\v: "[^"]*"[;,]/: string;/g]],
+    [[s/\vfalse|true/boolean/g]],
+    [[s/\[\]/Array<unknown>/g]],
+    [[s/{}/Record<string, unknown>/g]],
+    [[s/\v\[(\_[a-zA-Z]+)\]/Array<\1>/g]],
+    [[s/\vconst ([a-zA-Z0-9_]+)/type \1/g]],
   }
 
   for _, substitution in ipairs(substitutions) do
-    local cmd = "silent! " .. substitution
-
+    local cmd = "silent! "
+    if range_start and range_end then
+      cmd = cmd .. range_start .. "," .. range_end .. substitution
+    else
+      cmd = cmd .. "%" .. substitution
+    end
     vim.cmd(cmd)
   end
-  vim.cmd("normal! \\<Esc>")
+
+  if range_start and range_end then
+    vim.cmd("normal! \\<Esc>")
+  end
 
   vim.notify("JSON to TS types conversion applied", vim.log.levels.INFO)
 end, { desc = "Convert JSON to TypeScript types" })
