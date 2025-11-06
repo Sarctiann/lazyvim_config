@@ -52,7 +52,7 @@ vim.keymap.set("n", "<leader>od", function()
     print("You need to install LazyDocker to use this feature")
   else
     ---@diagnostic disable-next-line
-    LazyVim.terminal("LazyDocker")
+    Snacks.terminal("LazyDocker")
   end
 end, { desc = "Open LazyDocker (external)" })
 
@@ -61,7 +61,6 @@ vim.keymap.set({ "n", "v" }, "<leader>ct", function()
   local range_end = nil
   local mode = vim.api.nvim_get_mode().mode
   if mode == "V" or mode == "v" or mode == "" then
-    print("VIS")
     range_start = vim.fn.line("'<")
     range_end = vim.fn.line("'>")
   end
@@ -101,3 +100,13 @@ vim.keymap.set(
   "<cmd>e ~/.config/ghostty/config | e ~/.config/ghostty/local_config<cr>",
   { desc = "Open Ghostty local config" }
 )
+
+vim.keymap.set("n", "<leader>aj", function()
+  Snacks.terminal("cursor-agent", {
+    auto_close = true,
+    win = {
+      position = "right",
+      min_width = 60,
+    },
+  })
+end, { desc = "Toggle Cursor-Agent" })
