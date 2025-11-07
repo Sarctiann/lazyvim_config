@@ -1,14 +1,3 @@
--- Handle terminal mode keymaps for cursor-agent terminal buffers
-vim.api.nvim_create_autocmd({ "TermOpen", "TermEnter" }, {
-  pattern = "term://*cursor-agent*",
-  callback = function()
-    local opts = { buffer = 0, silent = true }
-    vim.keymap.set("t", "<Esc>", [[<C-\><C-n>]], opts)
-    vim.keymap.set("t", "<C-c>", [[<C-\><C-n>]], opts)
-    vim.keymap.set("t", "<C-d>", [[<C-\><C-n>]], opts)
-  end,
-})
-
 -- Cursor on the current file's directory
 local cursor_agent_term = nil
 vim.keymap.set("n", "<leader>aj", function()
@@ -23,6 +12,9 @@ vim.keymap.set("n", "<leader>aj", function()
       interactive = true,
       cwd = current_dir,
       win = {
+        on_close = function()
+          cursor_agent_term = nil
+        end,
         position = "right",
         min_width = 60,
       },
@@ -57,11 +49,35 @@ vim.keymap.set("n", "<leader>aJ", function()
       interactive = true,
       cwd = root_dir,
       win = {
+        on_close = function()
+          cursor_agent_term = nil
+        end,
         position = "right",
         min_width = 60,
       },
     })
   end
 end, { desc = "Toggle Cursor-Agent (Project Root)" })
+
+local function close_term()
+  if cursor_agent_term then
+    vim.cmd("q")
+    cursor_agent_term = nil
+  end
+end
+
+-- Handle terminal mode keymaps for cursor-agent terminal buffers
+vim.api.nvim_create_autocmd({ "TermOpen", "TermEnter" }, {
+  pattern = "term://*cursor-agent*",
+  callback = function()
+    local opts = { buffer = 0, silent = true }
+    vim.keymap.set("t", "<Esc>", [[<C-\><C-n>]], opts)
+    vim.keymap.set("t", "<C-c>", [[<C-\><C-n>]], opts)
+    vim.keymap.set("t", "<C-d>", [[<C-\><C-n>]], opts)
+    vim.keymap.set("n", "<Esc>", close_term, opts)
+    vim.keymap.set("n", "<C-c>", close_term, opts)
+    vim.keymap.set("n", "<C-d>", close_term, opts)
+  end,
+})
 
 return {}
