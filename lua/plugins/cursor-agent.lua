@@ -2,35 +2,41 @@
 local cursor_agent_term = nil
 
 -- NOTE: Function to open or toggle the Cursor-Agent terminal
-local function opern_cursor_cli(cwd)
+local function open_cursor_cli(cwd, args, keep_open)
   if cursor_agent_term then
     cursor_agent_term:toggle()
   else
-    cursor_agent_term = Snacks.terminal("cursor-agent", {
+    local cmd = args and " " .. args or ""
+    cursor_agent_term = Snacks.terminal("cursor-agent" .. cmd, {
       interactive = true,
       cwd = cwd,
       win = {
         on_close = function()
           cursor_agent_term = nil
         end,
-        position = "right",
-        min_width = 60,
+        title = " Cursor-Agent " .. (args and " ( " .. args .. " ) " or ""),
+        position = keep_open and "float" or "right",
+        min_width = keep_open and nil or 60,
+        border = "rounded",
       },
+      auto_close = not keep_open,
+      start_insert = not keep_open,
+      auto_insert = not keep_open,
     })
   end
 end
 
 -- NOTE: Cursor on the current file's directory
-vim.keymap.set("n", "<leader>aj", function()
+local function open_cursor_cwd()
   local current_dir = vim.fn.expand("%:p:h")
   if current_dir == "" then
     current_dir = vim.fn.getcwd()
   end
-  opern_cursor_cli(current_dir)
-end, { desc = "Toggle Cursor-Agent (Current Dir)" })
+  open_cursor_cli(current_dir, "--browser --approve-mcps")
+end
 
 -- NOTE: Cursor on the project root
-vim.keymap.set("n", "<leader>aJ", function()
+local function open_cursor_git_root()
   local current_file = vim.fn.expand("%:p")
   local current_dir = vim.fn.expand("%:p:h")
 
@@ -48,8 +54,48 @@ vim.keymap.set("n", "<leader>aJ", function()
   else
     root_dir = current_dir ~= "" and current_dir or vim.fn.getcwd()
   end
-  opern_cursor_cli(root_dir)
+  open_cursor_cli(root_dir, "--browser --approve-mcps")
+end
+
+-- NOTE: Show sessions function
+local function open_cursor_show_sessions()
+  local custom_cmd = "ls"
+  open_cursor_cli(nil, custom_cmd)
+end
+
+-- NOTE: Create user command to open Cursor-Agent
+vim.api.nvim_create_user_command("CursorAgent", function(opts)
+  local args = opts.args
+
+  if args == "open_cwd" or args == "" or not args then
+    open_cursor_cwd()
+  elseif args == "open_root" then
+    open_cursor_git_root()
+  elseif args == "session_list" then
+    open_cursor_show_sessions()
+  else
+    open_cursor_cli(nil, args, true)
+  end
+end, {
+  nargs = "?",
+  complete = function()
+    return { "open_cwd", "open_root", "session_list" }
+  end,
+  desc = "Open Cursor-Agent",
+})
+-- ----------------------------------------------
+
+-- NOTE: Keymaps to open Cursor-Agent
+vim.keymap.set("n", "<leader>aJ", function()
+  open_cursor_cwd()
+end, { desc = "Toggle Cursor-Agent (Current Dir)" })
+vim.keymap.set("n", "<leader>aj", function()
+  open_cursor_git_root()
 end, { desc = "Toggle Cursor-Agent (Project Root)" })
+vim.keymap.set("n", "<leader>al", function()
+  open_cursor_show_sessions()
+end, { desc = "Toggle Cursor-Agent (Show Sessions)" })
+-- ----------------------------------
 
 -- NOTE: Hide terminal function
 local function hide_term()
@@ -96,7 +142,7 @@ Cursor-Agent commands:
     · @     : Show file list to attach
     · !     : To run in the shell
     ]],
-    { title = "keymaps", style = "compact", history = false, timeout = 5000 }
+    { title = "Keymaps", style = "compact", history = false, timeout = 5000 }
   )
 end
 
@@ -109,7 +155,7 @@ vim.api.nvim_create_autocmd({ "TermOpen", "TermEnter" }, {
   pattern = "term://*cursor-agent*",
   callback = function()
     local opts = { buffer = 0, silent = true }
-    vim.keymap.set("t", "<Esc>", [[<C-\><C-n>]], opts)
+    vim.keymap.set("t", "<Esc>", [[<C-\><C-n>8k]], opts)
 
     vim.keymap.set("t", "<C-j>", insert_newline, opts)
     vim.keymap.set("t", "<M-j>", insert_newline, opts)
@@ -125,7 +171,7 @@ vim.api.nvim_create_autocmd({ "TermOpen", "TermEnter" }, {
 -- NOTE: Show help when opening the terminal
 vim.api.nvim_create_autocmd("TermOpen", {
   group = cursor_agent_opens_group,
-  pattern = "term://*cursor-agent*",
+  pattern = "term://*cursor-agent",
   callback = function()
     Snacks.notify(" Press: [<M-?>], [??], or [\\\\] to Show Help ", { title = "", style = "compact", history = false })
   end,
