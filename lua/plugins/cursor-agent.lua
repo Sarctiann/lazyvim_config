@@ -61,6 +61,7 @@ local function open_cursor_cli(cwd, args, keep_open)
         on_close = function()
           cursor_agent_term = {}
         end,
+        resize = true,
       },
       auto_close = not keep_open,
       start_insert = not keep_open,

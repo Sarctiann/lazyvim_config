@@ -2,9 +2,13 @@ return {
   {
     "folke/snacks.nvim",
     opts = {
+      --- @type snacks.terminal.Config
       terminal = {
         win = {
-          wo = { winbar = "" },
+          border = "rounded",
+          wo = {
+            winbar = "",
+          },
         },
       },
     },
