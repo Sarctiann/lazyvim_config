@@ -146,29 +146,31 @@ end, { desc = "Toggle Cursor-Agent (Show Sessions)" })
 local function show_help()
   Snacks.notify(
     [[Term Mode:
-    · <Esc> : Normal Mode
-    · <C-j> : New Line
-    · <M-j> : New paragraph
+    · <M-q>      : Normal Mode
+    · <Esc><Esc> : Normal Mode
+    · <C-j>      : New Line
+    · <M-j>      : New paragraph
     ---
-    · <M-?> : Show Help
-    · ??    : Show Help
-    · \\    : Show Help
+    · <M-?>      : Show Help
+    · ??         : Show Help
+    · \\         : Show Help
     ---
-    · <C-c> : Stop/Close
-    · <C-d> : Close
+    · <C-c>      : Stop/Close
+    · <C-d>      : Close
+    · <C-r>      : Review Changes
 
 Norm Mode:
-    · q     : Hide
-    · <Esc> : Hide
-    · (all other normal mode keys)
+    · q          : Hide
+    · <Esc>      : Hide
+    · <...>      (all other normal mode keys)
 
 Cursor-Agent commands:
-    · quit  : (<CR>) Close Cursor-Agent
-    · exit  : (<CR>) Close Cursor-Agent
+    · quit       : (<CR>) Close Cursor-Agent
+    · exit       : (<CR>) Close Cursor-Agent
     ---
-    · /     : Show command list
-    · @     : Show file list to attach
-    · !     : To run in the shell
+    · /          : Show command list
+    · @          : Show file list to attach
+    · !          : To run in the shell
     ]],
     { title = "Keymaps", style = "compact", history = false, timeout = 5000 }
   )
@@ -183,7 +185,7 @@ vim.api.nvim_create_autocmd({ "TermOpen", "TermEnter" }, {
   pattern = "term://*cursor-agent*",
   callback = function()
     local opts = { buffer = 0, silent = true }
-    vim.keymap.set("t", "<Esc>", [[<C-\><C-n>5(]], opts)
+    vim.keymap.set("t", "<M-q>", [[<C-\><C-n>5(]], opts)
 
     vim.keymap.set("t", "<C-j>", function()
       insert_text("\n")
