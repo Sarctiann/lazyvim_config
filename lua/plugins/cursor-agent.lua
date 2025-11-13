@@ -104,8 +104,21 @@ end
 
 -- NOTE: Show sessions function
 local function open_cursor_show_sessions()
+  local current_file = vim.fn.expand("%:p")
+  local current_dir = vim.fn.expand("%:p:h")
+
+  local root_dir = vim.fs.find({ ".git" }, {
+    path = current_file,
+    upward = true,
+  })[1]
+
+  if root_dir then
+    root_dir = vim.fn.fnamemodify(root_dir, ":h")
+  else
+    root_dir = current_dir ~= "" and current_dir or vim.fn.getcwd()
+  end
   local custom_cmd = "ls"
-  open_cursor_cli(nil, custom_cmd)
+  open_cursor_cli(root_dir, custom_cmd)
 end
 
 -- NOTE: Create user command to open Cursor-Agent
