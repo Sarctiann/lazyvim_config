@@ -1,6 +1,7 @@
 -- NOTE: Singleton terminal for Cursor-Agent
 local cursor_agent_term = nil
 local term_buf = nil
+local current_file = nil
 
 -- NOTE: Insert text into the terminal
 local function insert_text(text)
@@ -45,7 +46,7 @@ local function open_cursor_cli(cwd, args, keep_open)
     local current_file_abs = vim.fn.expand("%:p")
 
     local base_dir = cwd or vim.fn.getcwd()
-    local current_file = vim.fn.expand("%")
+    current_file = vim.fn.expand("%")
     if base_dir and base_dir ~= "" then
       current_file = vim.fs.relpath(base_dir, current_file_abs) or vim.fn.fnamemodify(current_file_abs, ":.")
     end
@@ -86,7 +87,7 @@ end
 
 -- NOTE: Cursor on the project root (git root)
 local function open_cursor_git_root()
-  local current_file = vim.fn.expand("%:p")
+  current_file = vim.fn.expand("%:p")
   local current_dir = vim.fn.expand("%:p:h")
 
   local root_dir = vim.fs.find({ ".git" }, {
@@ -104,7 +105,7 @@ end
 
 -- NOTE: Show sessions function
 local function open_cursor_show_sessions()
-  local current_file = vim.fn.expand("%:p")
+  current_file = vim.fn.expand("%:p")
   local current_dir = vim.fn.expand("%:p:h")
 
   local root_dir = vim.fs.find({ ".git" }, {
@@ -163,6 +164,7 @@ local function show_help()
     · <Esc><Esc> : Normal Mode
     · <C-j>      : New Line
     · <M-j>      : New paragraph
+    · <C-p>      : Add Buffer File Path
     ---
     · <M-?>      : Show Help
     · ??         : Show Help
@@ -206,6 +208,9 @@ vim.api.nvim_create_autocmd({ "TermOpen", "TermEnter" }, {
     vim.keymap.set("t", "<M-j>", function()
       insert_text("\n\n")
     end, opts)
+    vim.keymap.set("t", "<C-p>", function()
+      insert_text("@" .. current_file .. " ")
+    end, { noremap = true, silent = true })
 
     vim.keymap.set("t", "<M-?>", show_help, opts)
     vim.keymap.set("t", "??", show_help, opts)
