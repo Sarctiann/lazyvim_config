@@ -1,6 +1,7 @@
 -- NOTE: Singleton terminal for Cursor-Agent
 local cursor_agent_term = nil
 local term_buf = nil
+local working_dir = nil
 local current_file = nil
 
 -- NOTE: Insert text into the terminal
@@ -38,14 +39,14 @@ local function attech_file_when_cursor_is_ready(file_path, tries)
 end
 
 -- NOTE: Function to open or toggle the Cursor-Agent terminal
-local function open_cursor_cli(cwd, args, keep_open)
+local function open_cursor_cli(args, keep_open)
   if cursor_agent_term and cursor_agent_term.toggle then
     cursor_agent_term:toggle()
   else
     local cmd = args and " " .. args or ""
     local current_file_abs = vim.fn.expand("%:p")
 
-    local base_dir = cwd or vim.fn.getcwd()
+    local base_dir = working_dir or vim.fn.getcwd()
     current_file = vim.fn.expand("%")
     if base_dir and base_dir ~= "" then
       current_file = vim.fs.relpath(base_dir, current_file_abs) or vim.fn.fnamemodify(current_file_abs, ":.")
@@ -53,7 +54,7 @@ local function open_cursor_cli(cwd, args, keep_open)
 
     cursor_agent_term = Snacks.terminal("cursor-agent" .. cmd, {
       interactive = true,
-      cwd = cwd,
+      cwd = base_dir,
       win = {
         title = " Cursor-Agent " .. (args and " ( " .. args .. " ) " or ""),
         position = keep_open and "float" or "right",
@@ -77,12 +78,12 @@ end
 
 -- NOTE: Cursor on the current file's directory
 local function open_cursor_cwd()
-  local current_dir = vim.fn.expand("%:p:h")
+  working_dir = vim.fn.expand("%:p:h")
 
-  if current_dir == "" then
-    current_dir = vim.fn.getcwd()
+  if working_dir == "" then
+    working_dir = vim.fn.getcwd()
   end
-  open_cursor_cli(current_dir, "--browser --approve-mcps")
+  open_cursor_cli("--browser --approve-mcps")
 end
 
 -- NOTE: Cursor on the project root (git root)
@@ -90,17 +91,17 @@ local function open_cursor_git_root()
   current_file = vim.fn.expand("%:p")
   local current_dir = vim.fn.expand("%:p:h")
 
-  local root_dir = vim.fs.find({ ".git" }, {
+  working_dir = vim.fs.find({ ".git" }, {
     path = current_file,
     upward = true,
   })[1]
 
-  if root_dir then
-    root_dir = vim.fn.fnamemodify(root_dir, ":h")
+  if working_dir then
+    working_dir = vim.fn.fnamemodify(working_dir, ":h")
   else
-    root_dir = current_dir ~= "" and current_dir or vim.fn.getcwd()
+    working_dir = current_dir ~= "" and current_dir or vim.fn.getcwd()
   end
-  open_cursor_cli(root_dir, "--browser --approve-mcps")
+  open_cursor_cli("--browser --approve-mcps")
 end
 
 -- NOTE: Show sessions function
@@ -108,18 +109,55 @@ local function open_cursor_show_sessions()
   current_file = vim.fn.expand("%:p")
   local current_dir = vim.fn.expand("%:p:h")
 
-  local root_dir = vim.fs.find({ ".git" }, {
+  working_dir = vim.fs.find({ ".git" }, {
     path = current_file,
     upward = true,
   })[1]
 
-  if root_dir then
-    root_dir = vim.fn.fnamemodify(root_dir, ":h")
+  if working_dir then
+    working_dir = vim.fn.fnamemodify(working_dir, ":h")
   else
-    root_dir = current_dir ~= "" and current_dir or vim.fn.getcwd()
+    working_dir = current_dir ~= "" and current_dir or vim.fn.getcwd()
   end
   local custom_cmd = "ls"
-  open_cursor_cli(root_dir, custom_cmd)
+  open_cursor_cli(custom_cmd)
+end
+
+-- NOTE: Get paths of all open buffers
+local function get_open_buffers_paths()
+  local buffers = vim.api.nvim_list_bufs()
+  local paths = {}
+
+  local exclude_patterns = {
+    "//",
+    "neo-tree",
+  }
+
+  for _, buf in ipairs(buffers) do
+    if vim.api.nvim_buf_is_valid(buf) then
+      local buf_name = vim.api.nvim_buf_get_name(buf)
+
+      local should_exclude = false
+      for _, pattern in ipairs(exclude_patterns) do
+        if buf_name:match(pattern) then
+          should_exclude = true
+          break
+        end
+      end
+
+      if buf_name ~= "" and not should_exclude then
+        local file_path = vim.fn.fnamemodify(buf_name, ":p")
+        if file_path ~= "" then
+          if working_dir and working_dir ~= "" then
+            file_path = vim.fs.relpath(working_dir, file_path) or vim.fn.fnamemodify(file_path, ":.")
+          end
+          table.insert(paths, file_path)
+        end
+      end
+    end
+  end
+
+  return paths
 end
 
 -- NOTE: Create user command to open Cursor-Agent
@@ -133,7 +171,7 @@ vim.api.nvim_create_user_command("CursorAgent", function(opts)
   elseif args == "session_list" then
     open_cursor_show_sessions()
   else
-    open_cursor_cli(nil, args, true)
+    open_cursor_cli(args, true)
   end
 end, {
   nargs = "?",
@@ -165,12 +203,13 @@ local function show_help()
     · <C-j>      : New Line
     · <M-j>      : New paragraph
     · <C-p>      : Add Buffer File Path
+    · <C-p><C-p> : Add All Open Buffer File Paths
     ---
     · <M-?>      : Show Help
     · ??         : Show Help
     · \\         : Show Help
     ---
-    · <C-c>      : Stop/Close
+    · <C-c>      : Clear/Stop/Close
     · <C-d>      : Close
     · <C-r>      : Review Changes
 
@@ -209,7 +248,15 @@ vim.api.nvim_create_autocmd({ "TermOpen", "TermEnter" }, {
       insert_text("\n\n")
     end, opts)
     vim.keymap.set("t", "<C-p>", function()
-      insert_text("@" .. current_file .. " ")
+      if current_file then
+        insert_text("@" .. current_file .. " ")
+      end
+    end, { noremap = true, silent = true })
+    vim.keymap.set("t", "<C-p><C-p>", function()
+      local paths = get_open_buffers_paths()
+      for _, path in ipairs(paths) do
+        insert_text("@" .. path .. "\n")
+      end
     end, { noremap = true, silent = true })
 
     vim.keymap.set("t", "<M-?>", show_help, opts)
