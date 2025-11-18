@@ -101,3 +101,15 @@ vim.keymap.set(
   { desc = "Open Ghostty local config" }
 )
 
+vim.keymap.set("n", "<leader>gm", function()
+  local pattern = "^<\\{7\\}\\|^=\\{7\\}\\|^>\\{7\\}"
+  vim.fn.setreg("/", pattern)
+  vim.fn.search(pattern, "W")
+end, { desc = "Next git merge Conflict Marker" })
+
+vim.keymap.set("n", "<leader>gM", function()
+  local pattern = "^<\\{7\\}\\|^=\\{7\\}\\|^>\\{7\\}"
+  vim.fn.setreg("/", pattern)
+  vim.fn.cursor(1, 1)
+  vim.fn.search(pattern, "W")
+end, { desc = "First git merge Conflict Marker" })
