@@ -25,6 +25,10 @@ local function attech_file_when_cursor_is_ready(file_path, tries)
       return
     end
 
+    if not vim.api.nvim_buf_is_valid(term_buf) then
+      return
+    end
+
     local buf_lines = vim.api.nvim_buf_get_lines(term_buf, 0, 5, false)
 
     -- NOTE: Check if line 2 matches " Cursor Agent"
@@ -251,13 +255,13 @@ vim.api.nvim_create_autocmd({ "TermOpen", "TermEnter" }, {
       if current_file then
         insert_text("@" .. current_file .. " ")
       end
-    end, { noremap = true, silent = true })
+    end, opts)
     vim.keymap.set("t", "<C-p><C-p>", function()
       local paths = get_open_buffers_paths()
       for _, path in ipairs(paths) do
         insert_text("@" .. path .. "\n")
       end
-    end, { noremap = true, silent = true })
+    end, opts)
 
     vim.keymap.set("t", "<M-?>", show_help, opts)
     vim.keymap.set("t", "??", show_help, opts)
