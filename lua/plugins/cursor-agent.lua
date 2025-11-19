@@ -62,7 +62,7 @@ local function open_cursor_cli(args, keep_open)
       win = {
         title = " Cursor-Agent " .. (args and " ( " .. args .. " ) " or ""),
         position = keep_open and "float" or "right",
-        min_width = keep_open and nil or 60,
+        min_width = keep_open and nil or 64,
         border = "rounded",
         on_close = function()
           cursor_agent_term = {}
@@ -127,7 +127,7 @@ local function open_cursor_show_sessions()
   open_cursor_cli(custom_cmd)
 end
 
--- NOTE: Get paths of all open buffers
+-- NOTE: Get paths of all open buffers visible in bufline
 local function get_open_buffers_paths()
   local buffers = vim.api.nvim_list_bufs()
   local paths = {}
@@ -139,23 +139,30 @@ local function get_open_buffers_paths()
 
   for _, buf in ipairs(buffers) do
     if vim.api.nvim_buf_is_valid(buf) then
-      local buf_name = vim.api.nvim_buf_get_name(buf)
+      -- Only include buffers that are listed (visible in bufline)
+      local is_listed = vim.api.nvim_get_option_value("buflisted", { buf = buf })
+      local buftype = vim.api.nvim_get_option_value("buftype", { buf = buf })
 
-      local should_exclude = false
-      for _, pattern in ipairs(exclude_patterns) do
-        if buf_name:match(pattern) then
-          should_exclude = true
-          break
-        end
-      end
+      -- Only include listed buffers with empty buftype (normal files)
+      if is_listed and buftype == "" then
+        local buf_name = vim.api.nvim_buf_get_name(buf)
 
-      if buf_name ~= "" and not should_exclude then
-        local file_path = vim.fn.fnamemodify(buf_name, ":p")
-        if file_path ~= "" then
-          if working_dir and working_dir ~= "" then
-            file_path = vim.fs.relpath(working_dir, file_path) or vim.fn.fnamemodify(file_path, ":.")
+        local should_exclude = false
+        for _, pattern in ipairs(exclude_patterns) do
+          if buf_name:match(pattern) then
+            should_exclude = true
+            break
           end
-          table.insert(paths, file_path)
+        end
+
+        if buf_name ~= "" and not should_exclude then
+          local file_path = vim.fn.fnamemodify(buf_name, ":p")
+          if file_path ~= "" then
+            if working_dir and working_dir ~= "" then
+              file_path = vim.fs.relpath(working_dir, file_path) or vim.fn.fnamemodify(file_path, ":.")
+            end
+            table.insert(paths, file_path)
+          end
         end
       end
     end
@@ -202,33 +209,27 @@ end, { desc = "Toggle Cursor-Agent (Show Sessions)" })
 local function show_help()
   Snacks.notify(
     [[Term Mode:
-    · <M-q>      : Normal Mode
-    · <Esc><Esc> : Normal Mode
-    · <C-j>      : New Line
-    · <M-j>      : New paragraph
-    · <C-p>      : Add Buffer File Path
-    · <C-p><C-p> : Add All Open Buffer File Paths
+    · <C-s> | <CR><CR>   : Submit
+    · <M-q> | <Esc><Esc> : Normal Mode
+    · <C-p>              : Add Buffer File Path
+    · <C-p><C-p>         : Add All Open Buffer File Paths
     ---
-    · <M-?>      : Show Help
-    · ??         : Show Help
-    · \\         : Show Help
+    · <M-?> | ?? | \\    : Show Help
     ---
-    · <C-c>      : Clear/Stop/Close
-    · <C-d>      : Close
-    · <C-r>      : Review Changes
+    · <C-c>              : Clear/Stop/Close
+    · <C-d>              : Close
+    · <C-r>              : Review Changes
 
 Norm Mode:
-    · q          : Hide
-    · <Esc>      : Hide
-    · <...>      (all other normal mode keys)
+    · q | <Esc>          : Hide
+    · <...>              (all other normal mode keys)
 
 Cursor-Agent commands:
-    · quit       : (<CR>) Close Cursor-Agent
-    · exit       : (<CR>) Close Cursor-Agent
+    · quit | exit        : (<CR>) Close Cursor-Agent
     ---
-    · /          : Show command list
-    · @          : Show file list to attach
-    · !          : To run in the shell
+    · /                  : Show command list
+    · @                  : Show file list to attach
+    · !                  : To run in the shell
     ]],
     { title = "Keymaps", style = "compact", history = false, timeout = 5000 }
   )
@@ -244,13 +245,6 @@ vim.api.nvim_create_autocmd({ "TermOpen", "TermEnter" }, {
   callback = function()
     local opts = { buffer = 0, silent = true }
     vim.keymap.set("t", "<M-q>", [[<C-\><C-n>5(]], opts)
-
-    vim.keymap.set("t", "<C-j>", function()
-      insert_text("\n")
-    end, opts)
-    vim.keymap.set("t", "<M-j>", function()
-      insert_text("\n\n")
-    end, opts)
     vim.keymap.set("t", "<C-p>", function()
       if current_file then
         insert_text("@" .. current_file .. " ")
@@ -261,6 +255,15 @@ vim.api.nvim_create_autocmd({ "TermOpen", "TermEnter" }, {
       for _, path in ipairs(paths) do
         insert_text("@" .. path .. "\n")
       end
+    end, opts)
+    vim.keymap.set("t", "<CR><CR>", function()
+      vim.fn.feedkeys(vim.api.nvim_replace_termcodes("<Enter>", true, false, true), "n")
+    end, opts)
+    vim.keymap.set("t", "<C-s>", function()
+      vim.fn.feedkeys(vim.api.nvim_replace_termcodes("<Enter>", true, false, true), "n")
+    end, opts)
+    vim.keymap.set("t", "<CR>", function()
+      insert_text("\n")
     end, opts)
 
     vim.keymap.set("t", "<M-?>", show_help, opts)
@@ -276,9 +279,12 @@ vim.api.nvim_create_autocmd({ "TermOpen", "TermEnter" }, {
 -- NOTE: Show help when opening the terminal
 vim.api.nvim_create_autocmd("TermOpen", {
   group = cursor_agent_opens_group,
-  pattern = "term://*cursor-agent",
+  pattern = "term://*cursor-agent*",
   callback = function()
-    Snacks.notify(" Press: [<M-?>], [??], or [\\\\] to Show Help ", { title = "", style = "compact", history = false })
+    Snacks.notify(
+      " Press: [<M-?>] | [??] | [\\\\] to Show Help ",
+      { title = "", style = "compact", history = false, timeout = 3000 }
+    )
   end,
 })
 
