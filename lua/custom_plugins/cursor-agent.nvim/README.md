@@ -28,10 +28,11 @@ coding directly within your editor.
 
 ```lua
 {
-  "yourusername/cursor-agent.nvim",
+  "Sarctiann/cursor-agent.nvim",
   dependencies = {
     "folke/snacks.nvim",
   },
+  --- @type Cursor-Agent.Config
   opts = {
     use_default_mappings = true,
   },
@@ -46,6 +47,7 @@ coding directly within your editor.
   dependencies = {
     "folke/snacks.nvim",
   },
+  --- @type Cursor-Agent.Config
   opts = {
     use_default_mappings = true,
   },
@@ -56,7 +58,7 @@ coding directly within your editor.
 
 ```lua
 use {
-  "yourusername/cursor-agent.nvim",
+  "Sarctiann/cursor-agent.nvim",
   requires = { "folke/snacks.nvim" },
   config = function()
     require("cursor-agent").setup({
