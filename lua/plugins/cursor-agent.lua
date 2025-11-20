@@ -1,5 +1,7 @@
 return {
   dir = "~/.config/nvim/lua/custom_plugins/cursor-agent.nvim",
-  -- TODO: implement options
-  opts = {},
+  ---@type Cursor-Agent.Config
+  opts = {
+    use_default_mappings = true,
+  },
 }
