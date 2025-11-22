@@ -8,3 +8,4 @@ foo.*
 data
 lazy-lock.json
 .DS_Store
+playground.lua
