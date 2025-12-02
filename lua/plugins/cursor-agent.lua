@@ -13,6 +13,7 @@ return {
     opts = {
       use_default_mappings = true,
       show_help_on_open = false,
+      new_lines_amount = 2,
     },
     -- NOTE: Comment the two lines below to use the plugin from GitHub
     dev = true,
