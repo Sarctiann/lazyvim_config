@@ -31,3 +31,8 @@ vim.opt.spelllang = "en_us,es"
 
 -- Add Transparency to floating windows
 vim.opt.winblend = 15
+
+-- Ruby lsp settings || "../plugins/ruby.lua"
+vim.g.lazyvim_ruby_lsp = "ruby_lsp"
+vim.g.lazyvim_ruby_formatter = "rubocop"
+-- vim.g.lazyvim_ruby_lsp = "solargraph"
