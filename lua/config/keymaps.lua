@@ -94,12 +94,30 @@ vim.keymap.set({ "n", "v" }, "<leader>ct", function()
   vim.notify("JSON to TS types conversion applied", vim.log.levels.INFO)
 end, { desc = "Convert JSON to TypeScript types" })
 
-vim.keymap.set(
-  "n",
-  "<leader>fC",
-  "<cmd>e ~/.config/ghostty/config | e ~/.config/ghostty/local_config<cr>",
-  { desc = "Open Ghostty local config" }
-)
+vim.keymap.set("n", "<leader>fC", function()
+  local config_path = vim.fn.expand("~/.config/ghostty/config")
+  local local_config_path = vim.fn.expand("~/.config/ghostty/local_config")
+
+  local config_exists = vim.fn.bufexists(config_path) ~= 0
+  local local_config_exists = vim.fn.bufexists(local_config_path) ~= 0
+
+  if config_exists and local_config_exists then
+    local config_bufnr = vim.fn.bufnr(config_path)
+    local local_config_bufnr = vim.fn.bufnr(local_config_path)
+
+    if config_bufnr ~= -1 then
+      vim.cmd("bwipeout " .. config_bufnr)
+    end
+    if local_config_bufnr ~= -1 then
+      vim.cmd("bwipeout " .. local_config_bufnr)
+    end
+    vim.notify("Ghostty config files closed", vim.log.levels.INFO)
+  else
+    vim.cmd("edit " .. vim.fn.fnameescape(config_path))
+    vim.cmd("edit " .. vim.fn.fnameescape(local_config_path))
+    vim.notify("Ghostty config files opened", vim.log.levels.INFO)
+  end
+end, { desc = "Toggle Ghostty local config" })
 
 vim.keymap.set("n", "<leader>gm", function()
   local pattern = "^<\\{7\\}\\|^=\\{7\\}\\|^>\\{7\\}"
