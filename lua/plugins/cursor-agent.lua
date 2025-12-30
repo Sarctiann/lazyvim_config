@@ -12,8 +12,9 @@ return {
     --- @type Cursor-Agent.Config
     opts = {
       use_default_mappings = true,
-      show_help_on_open = false,
+      show_help_on_open = true,
       new_lines_amount = 2,
+      window_width = 64,
     },
     -- NOTE: Comment the two lines below to use the plugin from GitHub
     dev = true,
