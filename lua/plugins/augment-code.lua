@@ -4,8 +4,8 @@ local function augment_input()
     completion = "file",
   }, function(input)
     if input and input ~= "" then
-      -- Add @ prefix to file paths
-      local processed_input = input:gsub("([%w%.%/%-%_~]+%.%w+)", "`@%1`")
+      -- Add @ prefix to file paths (including dotfiles)
+      local processed_input = input:gsub("([%.%w%.%/%-%_~]*%.?[%w%.%/%-%_~]*%.[%w-_]+)", "`@%1`")
       vim.cmd("Augment chat " .. vim.fn.shellescape(processed_input))
     end
   end)
