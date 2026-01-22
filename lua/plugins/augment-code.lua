@@ -1,16 +1,3 @@
-local function augment_input()
-  vim.ui.input({
-    prompt = "Augment Message: ",
-    completion = "file",
-  }, function(input)
-    if input and input ~= "" then
-      -- NOTE: Add @ prefix to files
-      local processed_input = input:gsub("([%.%w%.%/%-%_~]*%.?[%w%.%/%-%_~]*%.[%w-_]+)", "`@%1`")
-      vim.cmd("Augment chat " .. vim.fn.shellescape(processed_input))
-    end
-  end)
-end
-
 -- NOTE: Create floating window
 local function augment_floating_input()
   local current_mode = vim.api.nvim_get_mode().mode
@@ -95,6 +82,25 @@ local function augment_floating_input()
   vim.keymap.set({ "n", "i" }, "<C-c>", restore_mode_and_close, { buffer = buf })
 end
 
+-- NOTE: Quick input
+local function augment_input(is_visual)
+  vim.ui.input({
+    prompt = "Augment Message: ",
+    default = is_visual and "What is this code doing? " or "",
+    completion = "file",
+  }, function(input)
+    if input and input ~= "" then
+      -- NOTE: Add @ prefix to files
+      local processed_input = input:gsub("([%.%w%.%/%-%_~]*%.?[%w%.%/%-%_~]*%.[%w-_]+)", "`@%1`")
+      vim.cmd((is_visual and "'<,'>" or "") .. "Augment chat " .. vim.fn.shellescape(processed_input))
+    end
+  end)
+end
+
+local function augment_input_visual()
+  augment_input(true)
+end
+
 return {
   "augmentcode/augment.vim",
   lazy = false,
@@ -113,7 +119,7 @@ return {
   keys = {
     { "<leader>am", augment_floating_input, desc = "AugmentCode Message Input", silent = true, noremap = true },
     { "<leader>aM", augment_input, desc = "AugmentCode Quick Input", silent = true, noremap = true },
-    { "<leader>a", augment_input, desc = "AugmentCode Ask Input", silent = false, noremap = true, mode = "v" },
+    { "<leader>a", augment_input_visual, desc = "AugmentCode Ask Input", silent = false, noremap = true, mode = "v" },
     { "<leader>an", ":Augment chat-new<CR>", desc = "AugmentCode New", silent = true, noremap = true },
     { "<leader>at", ":Augment chat-toggle<CR>", desc = "AugmentCode Toggle", silent = true, noremap = true },
 
