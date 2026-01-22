@@ -13,6 +13,8 @@ end
 
 -- NOTE: Create floating window
 local function augment_floating_input()
+  local current_mode = vim.api.nvim_get_mode().mode
+
   local width = math.floor(vim.o.columns * 0.5)
   local height = math.floor(vim.o.lines * 0.3)
   local win_col = math.floor((vim.o.columns - width) / 2)
@@ -37,6 +39,18 @@ local function augment_floating_input()
   -- NOTE: Enter insert mode
   vim.cmd("startinsert")
 
+  local function restore_mode_and_close()
+    vim.api.nvim_win_close(win, true)
+    -- NOTE: Restore original mode
+    if current_mode == "v" or current_mode == "V" or current_mode == "\22" then
+      vim.cmd("normal! gv")
+    elseif current_mode == "i" then
+      vim.cmd("startinsert")
+    else
+      vim.cmd("stopinsert")
+    end
+  end
+
   local function open_fuzzy_finder()
     require("fzf-lua").files({
       file_icons = false,
@@ -47,7 +61,7 @@ local function augment_floating_input()
             for _, file_path in ipairs(selection) do
               table.insert(formatted_files, "`@" .. file_path .. "`")
             end
-            local files_text = table.concat(formatted_files, ", ") .. " "
+            local files_text = " " .. table.concat(formatted_files, ", ") .. " "
             local row, col = unpack(vim.api.nvim_win_get_cursor(0))
             vim.api.nvim_buf_set_text(buf, row - 1, col - 1, row - 1, col, { files_text })
             vim.api.nvim_win_set_cursor(0, { row, col + #files_text })
@@ -64,7 +78,7 @@ local function augment_floating_input()
   local function submit()
     local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
     local content = table.concat(lines, " - ")
-    vim.api.nvim_win_close(win, true)
+    restore_mode_and_close()
 
     if content and content ~= "" then
       vim.cmd("Augment chat " .. vim.fn.shellescape(content))
@@ -76,20 +90,14 @@ local function augment_floating_input()
   vim.keymap.set("i", "<C-s>", submit, { buffer = buf })
   vim.keymap.set("i", "<CR><CR>", submit, { buffer = buf })
 
-  -- NOTE: Close on Escape
-  vim.keymap.set("n", "<Esc>", function()
-    vim.api.nvim_win_close(win, true)
-  end, { buffer = buf })
-
-  -- NOTE: Close on Ctrl-C
-  vim.keymap.set({ "n", "i" }, "<C-c>", function()
-    vim.api.nvim_win_close(win, true)
-  end, { buffer = buf })
+  -- NOTE: Close
+  vim.keymap.set("n", "<Esc>", restore_mode_and_close, { buffer = buf })
+  vim.keymap.set({ "n", "i" }, "<C-c>", restore_mode_and_close, { buffer = buf })
 end
 
 return {
   "augmentcode/augment.vim",
-
+  lazy = false,
   init = function()
     -- NOTE: This runs before the plugin loads
     local workspace_folders = {}
@@ -102,7 +110,6 @@ return {
 
     vim.g.augment_workspace_folders = workspace_folders
   end,
-
   keys = {
     { "<leader>am", augment_floating_input, desc = "AugmentCode Message Input", silent = true, noremap = true },
     { "<leader>aM", augment_input, desc = "AugmentCode Quick Input", silent = true, noremap = true },
