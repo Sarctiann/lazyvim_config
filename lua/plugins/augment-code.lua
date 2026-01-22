@@ -4,15 +4,15 @@ local function augment_input()
     completion = "file",
   }, function(input)
     if input and input ~= "" then
-      -- Add @ prefix to file paths (including dotfiles)
+      -- NOTE: Add @ prefix to files
       local processed_input = input:gsub("([%.%w%.%/%-%_~]*%.?[%w%.%/%-%_~]*%.[%w-_]+)", "`@%1`")
       vim.cmd("Augment chat " .. vim.fn.shellescape(processed_input))
     end
   end)
 end
 
+-- NOTE: Create floating window
 local function augment_floating_input()
-  -- Create floating window
   local width = math.floor(vim.o.columns * 0.5)
   local height = math.floor(vim.o.lines * 0.3)
   local win_col = math.floor((vim.o.columns - width) / 2)
@@ -27,19 +27,17 @@ local function augment_floating_input()
     border = "rounded",
     relative = "editor",
     title_pos = "center",
-    title = "   Augment Message (Submit with: Enter+Enter, Ctrl+s) ",
+    title = "   Augment Message ( Submit: <CR><CR>, <C-s> | Add files: @ ) ",
   })
 
-  -- Set buffer options (updated API)
+  -- NOTE: Set buffer options (updated API)
   vim.bo[buf].filetype = "markdown"
   vim.bo[buf].buftype = "nofile"
 
-  -- Enter insert mode
+  -- NOTE: Enter insert mode
   vim.cmd("startinsert")
 
-  vim.keymap.set("i", "@", function()
-    vim.api.nvim_put({ "@" }, "c", false, true)
-
+  local function open_fuzzy_finder()
     require("fzf-lua").files({
       file_icons = false,
       actions = {
@@ -50,18 +48,18 @@ local function augment_floating_input()
               table.insert(formatted_files, "`@" .. file_path .. "`")
             end
             local files_text = table.concat(formatted_files, ", ") .. " "
-
             local row, col = unpack(vim.api.nvim_win_get_cursor(0))
             vim.api.nvim_buf_set_text(buf, row - 1, col - 1, row - 1, col, { files_text })
-
             vim.api.nvim_win_set_cursor(0, { row, col + #files_text })
-
             vim.api.nvim_feedkeys("a", "n", false)
           end
         end,
       },
     })
-  end, { buffer = buf })
+  end
+
+  -- NOTE: Add files to the context
+  vim.keymap.set({ "n", "i" }, "@", open_fuzzy_finder, { buffer = buf })
 
   local function submit()
     local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
@@ -73,17 +71,17 @@ local function augment_floating_input()
     end
   end
 
-  -- Submit
+  -- NOTE: Submit
   vim.keymap.set("i", "<C-CR>", submit, { buffer = buf })
   vim.keymap.set("i", "<C-s>", submit, { buffer = buf })
   vim.keymap.set("i", "<CR><CR>", submit, { buffer = buf })
 
-  -- Close on Escape
+  -- NOTE: Close on Escape
   vim.keymap.set("n", "<Esc>", function()
     vim.api.nvim_win_close(win, true)
   end, { buffer = buf })
 
-  -- Close on Ctrl-C
+  -- NOTE: Close on Ctrl-C
   vim.keymap.set({ "n", "i" }, "<C-c>", function()
     vim.api.nvim_win_close(win, true)
   end, { buffer = buf })
@@ -93,7 +91,7 @@ return {
   "augmentcode/augment.vim",
 
   init = function()
-    -- This runs before the plugin loads
+    -- NOTE: This runs before the plugin loads
     local workspace_folders = {}
     table.insert(workspace_folders, vim.fn.getcwd())
 
