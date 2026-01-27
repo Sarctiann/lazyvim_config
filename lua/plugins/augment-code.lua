@@ -104,6 +104,7 @@ end
 return {
   "augmentcode/augment.vim",
   lazy = false,
+  priority = 1000,
   init = function()
     -- NOTE: This runs before the plugin loads
     local workspace_folders = {}
@@ -134,5 +135,9 @@ return {
     -- Some terminals algo supports this functionality by pressing Alt+Shift / Cmd+Shift and click.
     { "<leader>asi", ":Augment signin<CR>", desc = "AugmentCode Sign In", silent = true, noremap = true },
     { "<leader>aso", ":Augment signout<CR>", desc = "AugmentCode Sign Out", silent = true, noremap = true },
+
+    -- NOTE: Accept Suggestions
+    { "<CR><CR>", "<cmd>call augment#Accept()<cr>", mode = "i", silent = true, noremap = true },
+    { "<C-y>", "<cmd>call augment#Accept()<cr>", mode = "i", silent = true, noremap = true },
   },
 }

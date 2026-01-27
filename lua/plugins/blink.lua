@@ -111,7 +111,7 @@ return {
       -- Ussing TAB to accept suggestions
       keymap = {
         preset = "super-tab",
-        ["<C-y>"] = { "select_and_accept" },
+        ["<C-y>"] = { nil }, -- Disable <C-y> to accept suggestions
       },
     },
     ---@param opts blink.cmp.Config | { sources: { compat: string[] } }
