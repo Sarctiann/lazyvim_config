@@ -104,7 +104,6 @@ end
 return {
   "augmentcode/augment.vim",
   lazy = false,
-  priority = 1000,
   init = function()
     -- NOTE: This runs before the plugin loads
     local workspace_folders = {}
@@ -137,7 +136,6 @@ return {
     { "<leader>aso", ":Augment signout<CR>", desc = "AugmentCode Sign Out", silent = true, noremap = true },
 
     -- NOTE: Accept Suggestions
-    { "<CR><CR>", "<cmd>call augment#Accept()<cr>", mode = "i", silent = true, noremap = true },
     { "<C-y>", "<cmd>call augment#Accept()<cr>", mode = "i", silent = true, noremap = true },
   },
 }
