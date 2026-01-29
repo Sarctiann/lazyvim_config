@@ -16,7 +16,7 @@ local function augment_floating_input()
     border = "rounded",
     relative = "editor",
     title_pos = "center",
-    title = "   Augment Message ( Submit: <CR><CR>, <C-s> | Add files: @ ) ",
+    title = "   Augment Message ( Submit: <C-l>, <C-s>, <C-y> | Add files: @@ ) ",
   })
 
   -- NOTE: Set buffer options (updated API)
@@ -60,7 +60,7 @@ local function augment_floating_input()
   end
 
   -- NOTE: Add files to the context
-  vim.keymap.set({ "n", "i" }, "@", open_fuzzy_finder, { buffer = buf })
+  vim.keymap.set({ "n", "i" }, "@@", open_fuzzy_finder, { buffer = buf })
 
   local function submit()
     local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
@@ -73,8 +73,9 @@ local function augment_floating_input()
   end
 
   -- NOTE: Submit
+  vim.keymap.set({ "n", "i" }, "<C-l>", submit, { buffer = buf })
   vim.keymap.set({ "n", "i" }, "<C-s>", submit, { buffer = buf })
-  vim.keymap.set("i", "<CR><CR>", submit, { buffer = buf })
+  vim.keymap.set({ "n", "i" }, "<C-y>", submit, { buffer = buf })
   vim.keymap.set("n", "<CR>", submit, { buffer = buf })
 
   -- NOTE: Close
@@ -115,6 +116,7 @@ return {
     end
 
     vim.g.augment_workspace_folders = workspace_folders
+    vim.g.augment_disable_tab_mapping = true
   end,
   keys = {
     { "<leader>am", augment_floating_input, desc = "AugmentCode Message Input", silent = true, noremap = true },
@@ -137,5 +139,6 @@ return {
 
     -- NOTE: Accept Suggestions
     { "<C-y>", "<cmd>call augment#Accept()<cr>", mode = "i", silent = true, noremap = true },
+    { "<C-l>", "<cmd>call augment#Accept()<cr>", mode = "i", silent = true, noremap = true },
   },
 }
