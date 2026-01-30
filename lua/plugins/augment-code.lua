@@ -23,6 +23,9 @@ local function augment_floating_input()
   vim.bo[buf].filetype = "markdown"
   vim.bo[buf].buftype = "nofile"
 
+  -- NOTE: Enable Tab for Augment suggestions in this buffer only
+  vim.keymap.set("i", "<Tab>", "<cmd>call augment#Accept()<cr>", { buffer = buf, silent = true, noremap = true })
+
   -- NOTE: Enter insert mode
   vim.cmd("startinsert")
 
@@ -105,6 +108,8 @@ end
 return {
   "augmentcode/augment.vim",
   lazy = false,
+  -- NOTE: Highier than Blink
+  priority = 1000,
   init = function()
     -- NOTE: This runs before the plugin loads
     local workspace_folders = {}
@@ -116,7 +121,9 @@ return {
     end
 
     vim.g.augment_workspace_folders = workspace_folders
-    vim.g.augment_disable_tab_mapping = true
+    -- NOTE: If you have keymapping conflicts you can disable tab mapping
+    --
+    -- vim.g.augment_disable_tab_mapping = true
   end,
   keys = {
     { "<leader>am", augment_floating_input, desc = "AugmentCode Message Input", silent = true, noremap = true },

@@ -7,6 +7,8 @@ return {
   },
   {
     "saghen/blink.cmp",
+    -- NOTE: Less than Augment
+    priority = 900,
     version = not vim.g.lazyvim_blink_main and "*",
     build = vim.g.lazyvim_blink_main and "cargo build --release",
     opts_extend = {
