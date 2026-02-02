@@ -16,7 +16,7 @@ local function augment_floating_input()
     border = "rounded",
     relative = "editor",
     title_pos = "center",
-    title = "   Augment Message ( Submit: <C-l>, <C-s>, <C-y> | Add files: @@ ) ",
+    title = "   Augment Message ( Submit: <C-s> | Add files: @@ ) ",
   })
 
   -- NOTE: Set buffer options (updated API)
@@ -76,9 +76,7 @@ local function augment_floating_input()
   end
 
   -- NOTE: Submit
-  vim.keymap.set({ "n", "i" }, "<C-l>", submit, { buffer = buf })
   vim.keymap.set({ "n", "i" }, "<C-s>", submit, { buffer = buf })
-  vim.keymap.set({ "n", "i" }, "<C-y>", submit, { buffer = buf })
   vim.keymap.set("n", "<CR>", submit, { buffer = buf })
 
   -- NOTE: Close
