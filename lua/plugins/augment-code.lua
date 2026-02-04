@@ -77,6 +77,7 @@ local function augment_floating_input()
 
   -- NOTE: Submit
   vim.keymap.set({ "n", "i" }, "<C-s>", submit, { buffer = buf })
+  vim.keymap.set("i", "<leader><CR>", submit, { buffer = buf })
   vim.keymap.set("n", "<CR>", submit, { buffer = buf })
 
   -- NOTE: Close
