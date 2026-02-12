@@ -1,3 +1,12 @@
+-- NOTE:
+-- WARN:
+-- FIXME: Just dissabling it
+
+-- stylua: ignore
+if true then
+  return {}
+end
+
 -- NOTE: Create floating window
 local function augment_floating_input()
   local current_mode = vim.api.nvim_get_mode().mode

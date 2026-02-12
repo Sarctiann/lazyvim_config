@@ -1,21 +1,20 @@
 -- NOTE: you need to set the DOCS_DIR environment variable to point to your docs directory
 local DOCS_DIR = os.getenv("DOCS_DIR")
-local plugin_dir = DOCS_DIR .. "/SARCTIANN/LuaCode/custom_plugins/cursor-agent.nvim/"
+local plugin_dir = DOCS_DIR .. "/SARCTIANN/LuaCode/custom_plugins/cli-integration.nvim/"
 
 return {
-  --- @module 'cursor-agent'
+  --- @module 'cli-integration'
   {
-    "Sarctiann/cursor-agent.nvim",
+    "Sarctiann/cli-integration.nvim",
     dependencies = {
       "folke/snacks.nvim",
     },
-    --- @type Cursor-Agent.Config
+    --- @type Cli-Integration.Config
     opts = {
-      use_default_mappings = true,
+      -- NOTE: Global config
       show_help_on_open = true,
       new_lines_amount = 1,
       window_width = 64,
-      open_mode = "plan",
       cursor_window_keys = {
         terminal_mode = {
           normal_mode = { "<M-q>" },
@@ -31,6 +30,10 @@ return {
           hide = { "<Esc>" },
           toggle_width = { "<C-f>" },
         },
+      },
+      -- NOTE: Each integration can override global configs
+      integrations = {
+        { name = "Augment", cli_cmd = "auggie" },
       },
     },
     -- NOTE: Comment the two lines below to use the plugin from GitHub
