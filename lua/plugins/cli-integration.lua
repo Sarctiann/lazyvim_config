@@ -15,7 +15,7 @@ return {
       show_help_on_open = true,
       new_lines_amount = 1,
       window_width = 64,
-      cursor_window_keys = {
+      terminal_keys = {
         terminal_mode = {
           normal_mode = { "<M-q>" },
           insert_file_path = { "<C-p>" },
@@ -39,5 +39,25 @@ return {
     -- NOTE: Comment the two lines below to use the plugin from GitHub
     dev = true,
     dir = plugin_dir,
+    keys = {
+      {
+        "<leader>aa",
+        ":CLIIntegration open_root Augment<CR>",
+        desc = "Open Augment Code",
+        silent = true,
+      },
+      {
+        "<leader>aA",
+        ":CLIIntegration open_root Augment session resume<CR>",
+        desc = "Open (try) Augment Session Panel",
+        silent = true,
+      },
+      {
+        "<leader>aD",
+        ":! auggie session delete --all",
+        desc = "Delete ALL Augment sessions",
+        silent = true,
+      },
+    },
   },
 }
