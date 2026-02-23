@@ -47,7 +47,17 @@ return {
       },
       -- NOTE: Each integration can override global configs
       integrations = {
-        { name = "Augment", cli_cmd = "auggie" },
+        {
+          name = "Augment",
+          cli_cmd = "auggie",
+          terminal_keys = {
+            terminal_mode = {
+              normal_mode = { "<M-q>" },
+              insert_file_path = { "<C-o>" }, -- <C-p> is already taken by auggie
+              insert_all_buffers = { "<C-o><C-o>" },
+            },
+          },
+        },
       },
     },
     -- NOTE: Comment the two lines below to use the plugin from GitHub
