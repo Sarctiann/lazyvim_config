@@ -2,6 +2,20 @@
 local DOCS_DIR = os.getenv("DOCS_DIR")
 local plugin_dir = DOCS_DIR .. "/SARCTIANN/LuaCode/custom_plugins/cli-integration.nvim/"
 
+-- Function to delete all Augment sessions with confirmation
+local function delete_all_augment_sessions()
+  vim.ui.select({ "Yes", "No" }, {
+    prompt = "⚠️  Delete ALL Augment sessions? This action cannot be undone!",
+  }, function(choice)
+    if choice == "Yes" then
+      vim.cmd("! auggie session delete --all")
+      vim.notify("✓ All Augment sessions have been deleted", vim.log.levels.INFO)
+    else
+      vim.notify("Deletion cancelled", vim.log.levels.INFO)
+    end
+  end)
+end
+
 return {
   --- @module 'cli-integration'
   {
@@ -54,7 +68,7 @@ return {
       },
       {
         "<leader>aD",
-        ":! auggie session delete --all",
+        delete_all_augment_sessions,
         desc = "Delete ALL Augment sessions",
         silent = true,
       },
