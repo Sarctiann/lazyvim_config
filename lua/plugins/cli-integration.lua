@@ -50,6 +50,15 @@ return {
         {
           name = "Augment",
           cli_cmd = "auggie",
+          ready_text_flag = "Version",
+          start_with_text = function(visual_text)
+            if visual_text then
+              return "Explain this code:\n```\n" .. visual_text .. "\n```\n"
+            end
+            -- If no visual selection, feed the keys to insert the current file path
+            vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<C-o>", true, false, true), "t", false)
+            return ""
+          end,
           terminal_keys = {
             terminal_mode = {
               normal_mode = { "<M-q>" },
@@ -64,6 +73,13 @@ return {
     dev = true,
     dir = plugin_dir,
     keys = {
+      {
+        "<leader>a",
+        ":CLIIntegration open_root Augment<CR>",
+        desc = "Ask Augment",
+        silent = true,
+        mode = { "v" },
+      },
       {
         "<leader>aa",
         ":CLIIntegration open_root Augment<CR>",
