@@ -1,3 +1,7 @@
+-- WARN: Temporary bypass
+-- stylua: ignore
+if true then return {} end
+
 -- NOTE: you need to set the DOCS_DIR environment variable to point to your docs directory
 local DOCS_DIR = os.getenv("DOCS_DIR")
 local plugin_dir = DOCS_DIR .. "/SARCTIANN/LuaCode/custom_plugins/cursor-agent.nvim/"

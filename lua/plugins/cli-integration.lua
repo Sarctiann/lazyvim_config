@@ -87,13 +87,13 @@ return {
         silent = true,
       },
       {
-        "<leader>aA",
+        "<leader>al",
         ":CLIIntegration open_root Augment session resume<CR>",
         desc = "Open (try) Augment Session Panel",
         silent = true,
       },
       {
-        "<leader>aD",
+        "<leader>ad",
         delete_all_augment_sessions,
         desc = "Delete ALL Augment sessions",
         silent = true,
