@@ -13,7 +13,7 @@ vim.keymap.set("i", "<M-Up>", "<esc><cmd>m .-2<cr>==gi", { desc = "Move up" })
 vim.keymap.set("v", "<M-Down>", ":m '>+1<cr>gv=gv", { desc = "Move down" })
 vim.keymap.set("v", "<M-Up>", ":m '<-2<cr>gv=gv", { desc = "Move up" })
 
-vim.keymap.set("n", "<space>bQ", function()
+vim.keymap.set("n", "<space>bq", function()
   Snacks.bufdelete.all()
 end, { desc = "Delete all buffers", silent = true })
 
