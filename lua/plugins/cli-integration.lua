@@ -1,6 +1,8 @@
+-- NOTE: you need to set the DOCS_DIR environment variable to point to your docs directory
 local DOCS_DIR = os.getenv("DOCS_DIR")
 local plugin_dir = DOCS_DIR and (DOCS_DIR .. "/SARCTIANN/LuaCode/custom_plugins/cli-integration.nvim/") or nil
 
+-- NOTE: Function to delete all Augment sessions with confirmation
 local function delete_all_augment_sessions()
   vim.ui.select({ "Yes", "No" }, {
     prompt = "⚠️  Delete ALL Augment sessions? This action cannot be undone!",
@@ -14,6 +16,7 @@ local function delete_all_augment_sessions()
   end)
 end
 
+-- NOTE: Function to manage Augment sessions (list, delete, resume)
 local function manage_augment_sessions(show_all)
   local sessions_dir = vim.fn.expand("~/.augment/sessions")
 
@@ -29,6 +32,7 @@ local function manage_augment_sessions(show_all)
     return
   end
 
+  -- NOTE: Get current git root
   local git_root = vim.fn.systemlist("git rev-parse --show-toplevel")[1]
   local current_workspace = git_root and git_root or vim.fn.getcwd()
 
@@ -44,6 +48,7 @@ local function manage_augment_sessions(show_all)
         local modified = session_data.modified or session_data.created or "Unknown"
         local session_id = session_data.sessionId or vim.fn.fnamemodify(file_path, ":t:r")
 
+        -- NOTE: Get workspace from session data
         local session_workspace = "Unknown"
         if session_data.chatHistory and #session_data.chatHistory > 0 then
           local first_exchange = session_data.chatHistory[1].exchange
@@ -60,6 +65,7 @@ local function manage_augment_sessions(show_all)
           end
         end
 
+        -- NOTE: Filter by workspace if not showing all
         local should_include = show_all or session_workspace == current_workspace
 
         if should_include then
@@ -88,6 +94,7 @@ local function manage_augment_sessions(show_all)
     end
   end
 
+  -- NOTE: If no sessions found for current workspace and not showing all, show all sessions
   if #sessions == 0 and not show_all then
     vim.notify("No sessions found for this workspace, showing all sessions", vim.log.levels.INFO)
     vim.schedule(function()
@@ -101,6 +108,7 @@ local function manage_augment_sessions(show_all)
     return
   end
 
+  -- NOTE: Sort by modified date (most recent first)
   table.sort(sessions, function(a, b)
     return a.modified > b.modified
   end)
@@ -110,11 +118,13 @@ local function manage_augment_sessions(show_all)
     table.insert(display_items, session.display)
   end
 
+  -- NOTE: Add special items at the beginning
   table.insert(display_items, 1, ">>> 🔄 Toggle All Sessions")
   table.insert(display_items, 2, ">>> ➕ Create New Session")
 
   local scope_text = show_all and "[All Sessions]" or "[Current Workspace]"
 
+  -- NOTE: Schedule moving to the third item (first session) after the select opens
   vim.schedule(function()
     vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<C-j><C-j>", true, false, true), "n", false)
   end)
@@ -126,15 +136,19 @@ local function manage_augment_sessions(show_all)
       return
     end
 
+    -- NOTE: Handle special items
     if idx == 1 then
+      -- NOTE: Toggle all sessions
       manage_augment_sessions(not show_all)
       return
     elseif idx == 2 then
+      -- NOTE: Create new session
       vim.cmd("CLIIntegration open_root Augment")
       vim.notify("Creating new Augment session", vim.log.levels.INFO)
       return
     end
 
+    -- NOTE: Adjust index for actual sessions (subtract special items)
     local session_idx = idx - 2
     if session_idx < 1 or session_idx > #sessions then
       return
@@ -142,15 +156,18 @@ local function manage_augment_sessions(show_all)
 
     local session = sessions[session_idx]
 
+    -- NOTE: Show action menu
     vim.ui.select({ "Resume", "Delete", "Go Back" }, {
       prompt = "Action for session (Esc: Cancel)",
     }, function(action)
       if action == "Resume" then
         vim.cmd("CLIIntegration open_root Augment session resume " .. session.id)
         vim.notify("Resuming session: " .. session.id, vim.log.levels.INFO)
+        -- NOTE: Focus the CLI integration window after it opens
         vim.defer_fn(function()
           for _, win in ipairs(vim.api.nvim_list_wins()) do
             local buf = vim.api.nvim_win_get_buf(win)
+            -- NOTE: Check if it's a terminal buffer (CLI integration uses terminal)
             if vim.api.nvim_get_option_value("buftype", { buf = buf }) == "terminal" then
               vim.api.nvim_set_current_win(win)
               vim.cmd("startinsert")
@@ -185,9 +202,12 @@ local function manage_augment_sessions(show_all)
 end
 
 return {
+  --- @module 'cli-integration'
   {
     "Sarctiann/cli-integration.nvim",
+    --- @type Cli-Integration.Config
     opts = {
+      -- NOTE: Global config
       show_help_on_open = true,
       new_lines_amount = 1,
       window_width = 34,
@@ -208,6 +228,7 @@ return {
           toggle_width = { "<C-f>" },
         },
       },
+      -- NOTE: Each integration can override global configs
       integrations = {
         {
           name = "Augment",
@@ -217,22 +238,26 @@ return {
             if visual_text then
               return "Explain this code:\n```\n" .. visual_text .. "\n```\n"
             end
+            -- NOTE: If no visual selection, feed the keys to insert the current file path
             vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<C-o>", true, false, true), "t", false)
             return ""
           end,
           terminal_keys = {
             terminal_mode = {
               normal_mode = { "<M-q>" },
-              insert_file_path = { "<C-o>" },
+              insert_file_path = { "<C-o>" }, -- NOTE: <C-p> is already taken by auggie
               insert_all_buffers = { "<C-o><C-o>" },
             },
           },
         },
       },
     },
+    -- NOTE: Comment the two lines below to use the plugin from GitHub
     dev = true,
     dir = plugin_dir,
     keys = {
+      -- NOTE: Augment keymaps
+      -- NOTE: Visual Mode
       {
         "<leader>a",
         ":CLIIntegration open_root Augment --dont-save-session<CR>",
@@ -240,6 +265,7 @@ return {
         silent = true,
         mode = { "v" },
       },
+      -- NOTE: Normal mode
       {
         "<leader>aa",
         ":CLIIntegration open_root Augment -c<CR>",
