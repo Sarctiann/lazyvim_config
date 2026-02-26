@@ -29,6 +29,7 @@ return {
       show_help_on_open = true,
       new_lines_amount = 1,
       window_width = 34,
+      window_padding = 1,
       terminal_keys = {
         terminal_mode = {
           normal_mode = { "<M-q>" },
@@ -67,12 +68,19 @@ return {
             },
           },
         },
+        -- NOTE: just for testing the floating window
+        {
+          name = "FloatingTerm",
+          cli_cmd = "zsh",
+          floating = true,
+        },
       },
     },
     -- NOTE: Comment the two lines below to use the plugin from GitHub
     dev = true,
     dir = plugin_dir,
     keys = {
+      -- NOTE: Augment keymaps
       {
         "<leader>a",
         ":CLIIntegration open_root Augment<CR>",
@@ -96,6 +104,19 @@ return {
         "<leader>ad",
         delete_all_augment_sessions,
         desc = "Delete ALL Augment sessions",
+        silent = true,
+      },
+      -- NOTE: FloatingTerm keymaps
+      {
+        "<leader>t",
+        ":CLIIntegration open_root FloatingTerm<CR>",
+        desc = "Open Floating Term (root)",
+        silent = true,
+      },
+      {
+        "<leader>T",
+        ":CLIIntegration open_cwd FloatingTerm<CR>",
+        desc = "Open Floating Term (cwd)",
         silent = true,
       },
     },
