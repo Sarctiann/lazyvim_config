@@ -268,32 +268,32 @@ return {
       -- NOTE: Normal mode
       {
         "<leader>aa",
-        ":CLIIntegration open_root Augment -c<CR>",
-        desc = "Augment Code Resume last session",
-        silent = true,
-      },
-      {
-        "<leader>as",
-        manage_augment_sessions,
-        desc = "Augment Code Custom Session Manager",
-        silent = true,
-      },
-      {
-        "<leader>an",
         ":CLIIntegration open_root Augment<CR>",
         desc = "Augment Code New Session",
         silent = true,
       },
       {
-        "<leader>al",
-        ":CLIIntegration open_root Augment session resume<CR>",
-        desc = "Augment Code Show Session list",
+        "<leader>ac",
+        ":CLIIntegration open_root Augment -c<CR>",
+        desc = "Augment Code Resume last session",
         silent = true,
       },
       {
         "<leader>ad",
         delete_all_augment_sessions,
         desc = "Augment Code Delete All sessions",
+        silent = true,
+      },
+      {
+        "<leader>ar",
+        ":CLIIntegration open_root Augment session resume<CR>",
+        desc = "Augment Code Resume Session list",
+        silent = true,
+      },
+      {
+        "<leader>as",
+        manage_augment_sessions,
+        desc = "Augment Code Custom Session Manager",
         silent = true,
       },
     },
