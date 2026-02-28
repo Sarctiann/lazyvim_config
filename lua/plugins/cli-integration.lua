@@ -2,6 +2,13 @@
 local DOCS_DIR = os.getenv("DOCS_DIR")
 local plugin_dir = DOCS_DIR and (DOCS_DIR .. "/SARCTIANN/LuaCode/custom_plugins/cli-integration.nvim/") or nil
 
+local ok, local_config = pcall(require, "local_config")
+local local_integrations = (ok and local_config and local_config.integrations)
+  or {
+    integrations_overrides = {},
+    keys_overrides = {},
+  }
+
 -- NOTE: Function to delete all Augment sessions with confirmation
 local function delete_all_augment_sessions()
   vim.ui.select({ "Yes", "No" }, {
@@ -229,7 +236,9 @@ return {
         },
       },
       -- NOTE: Each integration can override global configs
-      integrations = {
+      --
+      --- @type Cli-Integration.Integration[]
+      integrations = vim.list_extend({
         {
           name = "Augment",
           cli_cmd = "auggie",
@@ -250,12 +259,12 @@ return {
             },
           },
         },
-      },
+      }, local_integrations.integrations_overrides),
     },
     -- NOTE: Comment the two lines below to use the plugin from GitHub
     dev = true,
     dir = plugin_dir,
-    keys = {
+    keys = vim.list_extend({
       -- NOTE: Augment keymaps
       -- NOTE: Visual Mode
       {
@@ -296,6 +305,6 @@ return {
         desc = "Augment Code Custom Session Manager",
         silent = true,
       },
-    },
+    }, local_integrations.keys_overrides),
   },
 }
