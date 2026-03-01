@@ -2,8 +2,8 @@
 local DOCS_DIR = os.getenv("DOCS_DIR")
 local plugin_dir = DOCS_DIR and (DOCS_DIR .. "/SARCTIANN/LuaCode/custom_plugins/cli-integration.nvim/") or nil
 
-local ok, local_config = pcall(require, "local_config")
-local local_integrations = (ok and local_config and local_config.integrations)
+local lc_ok, local_config = pcall(require, "local_config")
+local local_integrations = (lc_ok and local_config and local_config.integrations)
   or {
     integrations_overrides = {},
     keys_overrides = {},
