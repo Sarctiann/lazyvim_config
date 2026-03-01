@@ -36,11 +36,15 @@ local function delete_all_gemini_sessions()
       end
 
       local session_files = vim.fn.glob(chats_dir .. "/*.json", false, true)
+      local deleted_count = 0
       for _, file in ipairs(session_files) do
-        os.remove(file)
+        local success = vim.fn.delete(file)
+        if success == 0 then
+          deleted_count = deleted_count + 1
+        end
       end
 
-      vim.notify("✓ All sessions for " .. project_name .. " deleted", vim.log.levels.INFO)
+      vim.notify("✓ " .. deleted_count .. " session(s) for " .. project_name .. " deleted", vim.log.levels.INFO)
     else
       vim.notify("Deletion cancelled", vim.log.levels.INFO)
     end
@@ -200,17 +204,35 @@ local function manage_gemini_sessions(show_all)
     }, function(action)
       if action == "Resume" then
         vim.cmd("CLIIntegration open_root Gemini --resume " .. session.id)
+        vim.notify("Resuming session: " .. session.id, vim.log.levels.INFO)
+        -- NOTE: Focus the CLI integration window after it opens
+        vim.defer_fn(function()
+          for _, win in ipairs(vim.api.nvim_list_wins()) do
+            local buf = vim.api.nvim_win_get_buf(win)
+            -- NOTE: Check if it's a terminal buffer (CLI integration uses terminal)
+            if vim.api.nvim_get_option_value("buftype", { buf = buf }) == "terminal" then
+              vim.api.nvim_set_current_win(win)
+              vim.cmd("startinsert")
+              break
+            end
+          end
+        end, 100)
       elseif action == "Delete" then
         vim.ui.select({ "Yes", "No" }, {
           prompt = "⚠️  Delete session " .. session.id .. "?",
         }, function(confirm)
           if confirm == "Yes" then
-            os.remove(session.file_path)
-            vim.notify("✓ Session deleted: " .. session.id, vim.log.levels.INFO)
+            local success = vim.fn.delete(session.file_path)
+            if success == 0 then
+              vim.notify("✓ Session deleted: " .. session.id, vim.log.levels.INFO)
+            else
+              vim.notify("✗ Failed to delete session: " .. session.id, vim.log.levels.ERROR)
+            end
             vim.schedule(function()
               manage_gemini_sessions(show_all)
             end)
           else
+            vim.notify("Deletion cancelled", vim.log.levels.INFO)
             vim.schedule(function()
               manage_gemini_sessions(show_all)
             end)
@@ -245,20 +267,21 @@ return {
       },
     },
     keys_overrides = {
+      { "<leader>ag", nil, desc = "Gemini Code Assistant" },
       {
-        "<leader>aa",
+        "<leader>aga",
         ":CLIIntegration open_root Gemini<CR>",
         desc = "Gemini New Session",
         silent = true,
       },
       {
-        "<leader>ac",
+        "<leader>agc",
         ":CLIIntegration open_root Gemini --resume latest<CR>",
         desc = "Gemini Resume Latest",
         silent = true,
       },
       {
-        "<leader>as",
+        "<leader>ags",
         function()
           manage_gemini_sessions(false)
         end,
@@ -266,19 +289,18 @@ return {
         silent = true,
       },
       {
-        "<leader>ad",
+        "<leader>agd",
         delete_all_gemini_sessions,
         desc = "Gemini Delete Project Sessions",
         silent = true,
       },
       {
-        "<leader>a",
+        "<leader>ag",
         ":CLIIntegration open_root Gemini --dont-save-session<CR>",
         desc = "Gemini Ask",
         silent = true,
         mode = { "v" },
       },
-      { "<leader>ar", nil },
     },
   },
 }

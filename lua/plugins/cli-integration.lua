@@ -268,7 +268,7 @@ return {
       -- NOTE: Augment keymaps
       -- NOTE: Visual Mode
       {
-        "<leader>a",
+        "<leader>aa",
         ":CLIIntegration open_root Augment --dont-save-session<CR>",
         desc = "Augment Code Ask",
         silent = true,
