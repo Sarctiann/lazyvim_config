@@ -1,53 +1,74 @@
--- NOTE: Function to delete all Gemini sessions for the current project
+-- NOTE: Function to delete Gemini sessions (current project or all)
 local function delete_all_gemini_sessions()
-  vim.ui.select({ "Yes", "No" }, {
-    prompt = "⚠️  Delete ALL Gemini sessions for this project? This action cannot be undone!",
-  }, function(choice)
-    if choice == "Yes" then
-      local git_root = vim.fn.systemlist("git rev-parse --show-toplevel")[1]
-      local current_path = git_root and git_root or vim.fn.getcwd()
+  local base_dir = vim.fn.expand("~/.gemini/tmp")
+  local projects_file = vim.fn.expand("~/.gemini/projects.json")
 
-      -- Get project name from projects.json
-      local projects_file = vim.fn.expand("~/.gemini/projects.json")
-      local f = io.open(projects_file, "r")
-      if not f then
-        vim.notify("Could not read projects.json", vim.log.levels.ERROR)
-        return
-      end
-      local content = f:read("*all")
-      f:close()
+  -- 1. Identify current project
+  local git_root_list = vim.fn.systemlist("git rev-parse --show-toplevel")
+  local current_path = (vim.v.shell_error == 0 and git_root_list[1]) or vim.fn.getcwd()
+  local project_name = nil
 
-      local ok, projects_data = pcall(vim.json.decode, content)
-      if not ok or not projects_data or not projects_data.projects then
-        vim.notify("Error parsing projects.json", vim.log.levels.ERROR)
-        return
-      end
-
-      local project_name = projects_data.projects[current_path]
-      if not project_name then
-        vim.notify("Could not find project name for: " .. current_path, vim.log.levels.ERROR)
-        return
-      end
-
-      local chats_dir = vim.fn.expand("~/.gemini/tmp/" .. project_name .. "/chats")
-      if vim.fn.isdirectory(chats_dir) == 0 then
-        vim.notify("No sessions directory found for " .. project_name, vim.log.levels.INFO)
-        return
-      end
-
-      local session_files = vim.fn.glob(chats_dir .. "/*.json", false, true)
-      local deleted_count = 0
-      for _, file in ipairs(session_files) do
-        local success = vim.fn.delete(file)
-        if success == 0 then
-          deleted_count = deleted_count + 1
-        end
-      end
-
-      vim.notify("✓ " .. deleted_count .. " session(s) for " .. project_name .. " deleted", vim.log.levels.INFO)
-    else
-      vim.notify("Deletion cancelled", vim.log.levels.INFO)
+  local pf = io.open(projects_file, "r")
+  if pf then
+    local content = pf:read("*all")
+    pf:close()
+    local ok, projects_data = pcall(vim.json.decode, content)
+    if ok and projects_data and projects_data.projects then
+      project_name = projects_data.projects[current_path]
     end
+  end
+
+  -- 2. Ask for scope
+  local options = { "Current Project Only", "ALL Projects", "Cancel" }
+  local prompt_text = "⚠️  Delete Gemini sessions?"
+  if project_name then
+    prompt_text = "⚠️  Delete Gemini sessions for [" .. project_name .. "] or ALL projects?"
+  end
+
+  vim.ui.select(options, {
+    prompt = prompt_text,
+  }, function(choice)
+    if not choice or choice == "Cancel" then
+      return
+    end
+
+    local session_files = {}
+    local scope_desc = ""
+
+    if choice == "Current Project Only" then
+      if not project_name then
+        vim.notify("Could not identify project for: " .. current_path, vim.log.levels.ERROR)
+        return
+      end
+      local chats_dir = base_dir .. "/" .. project_name .. "/chats"
+      session_files = vim.fn.glob(chats_dir .. "/*.json", false, true)
+      scope_desc = "project " .. project_name
+    else
+      session_files = vim.fn.glob(base_dir .. "/*/chats/*.json", false, true)
+      scope_desc = "ALL projects"
+    end
+
+    if #session_files == 0 then
+      vim.notify("No Gemini sessions found for " .. scope_desc, vim.log.levels.INFO)
+      return
+    end
+
+    -- 3. Final confirmation
+    vim.ui.select({ "Yes, Delete " .. #session_files .. " sessions", "No, Cancel" }, {
+      prompt = "Confirm: Delete ALL " .. #session_files .. " sessions for " .. scope_desc .. "?",
+    }, function(confirm)
+      if confirm and confirm:match("^Yes") then
+        local deleted_count = 0
+        for _, file in ipairs(session_files) do
+          if vim.fn.delete(file) == 0 then
+            deleted_count = deleted_count + 1
+          end
+        end
+        vim.notify("✓ " .. deleted_count .. " session(s) for " .. scope_desc .. " deleted", vim.log.levels.INFO)
+      else
+        vim.notify("Deletion cancelled", vim.log.levels.INFO)
+      end
+    end)
   end)
 end
 
@@ -72,8 +93,8 @@ local function manage_gemini_sessions(show_all)
   end
 
   -- Get current project name
-  local git_root = vim.fn.systemlist("git rev-parse --show-toplevel")[1]
-  local current_path = git_root and git_root or vim.fn.getcwd()
+  local git_root_list = vim.fn.systemlist("git rev-parse --show-toplevel")
+  local current_path = (vim.v.shell_error == 0 and git_root_list[1]) or vim.fn.getcwd()
   local current_project = projects_data.projects[current_path]
 
   -- Collect session files
