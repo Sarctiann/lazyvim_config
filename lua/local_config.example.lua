@@ -269,6 +269,7 @@ local function manage_gemini_sessions(show_all)
 end
 
 return {
+  company_dirs = { "dir1", "dir2" },
   integrations = {
     integrations_overrides = {
       {

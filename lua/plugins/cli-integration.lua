@@ -5,9 +5,19 @@ local plugin_dir = DOCS_DIR and (DOCS_DIR .. "/SARCTIANN/LuaCode/custom_plugins/
 local lc_ok, local_config = pcall(require, "local_config")
 local local_integrations = (lc_ok and local_config and local_config.integrations)
   or {
+    company_dirs = "",
     integrations_overrides = {},
     keys_overrides = {},
   }
+local current_dir = vim.fn.getcwd()
+local auggie_op = "auggie"
+
+for _, dir in ipairs(local_config.company_dirs) do
+  local _, found = string.find(current_dir, dir)
+  if found then
+    auggie_op = "auggie --augment-cache-dir " .. string.sub(current_dir, 1, found) .. "/.augment_work_profile"
+  end
+end
 
 -- NOTE: Function to delete all Augment sessions with confirmation
 local function delete_all_augment_sessions()
@@ -241,7 +251,7 @@ return {
       integrations = vim.list_extend({
         {
           name = "Augment",
-          cli_cmd = "auggie",
+          cli_cmd = auggie_op,
           ready_text_flag = "Version",
           start_with_text = function(visual_text)
             if visual_text then
