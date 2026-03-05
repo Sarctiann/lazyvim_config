@@ -291,26 +291,33 @@ return {
         desc = "Augment Code New Session",
         silent = true,
       },
+      -- NOTE: Augment Sessions
       {
-        "<leader>ac",
+        "<leader>aA",
+        nil,
+        desc = "Augment Code Sessions",
+        silent = true,
+      },
+      {
+        "<leader>aAc",
         ":CLIIntegration open_root Augment -c<CR>",
         desc = "Augment Code Resume last session",
         silent = true,
       },
       {
-        "<leader>ad",
+        "<leader>aAd",
         delete_all_augment_sessions,
         desc = "Augment Code Delete All sessions",
         silent = true,
       },
       {
-        "<leader>ar",
+        "<leader>aAr",
         ":CLIIntegration open_root Augment session resume<CR>",
         desc = "Augment Code Resume Session list",
         silent = true,
       },
       {
-        "<leader>as",
+        "<leader>aAs",
         manage_augment_sessions,
         desc = "Augment Code Custom Session Manager",
         silent = true,

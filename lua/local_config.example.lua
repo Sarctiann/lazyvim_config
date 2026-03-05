@@ -289,21 +289,36 @@ return {
       },
     },
     keys_overrides = {
-      { "<leader>ag", nil, desc = "Gemini Code Assistant" },
+      -- NOTE: Visual Mode
       {
-        "<leader>aga",
+        "<leader>A",
+        ":CLIIntegration open_root Gemini --dont-save-session<CR>",
+        desc = "Gemini Ask",
+        silent = true,
+        mode = { "v" },
+      },
+      -- NOTE: Normal mode
+      {
+        "<leader>ag",
         ":CLIIntegration open_root Gemini<CR>",
         desc = "Gemini New Session",
         silent = true,
       },
+      -- NOTE: Gemini Sessions
       {
-        "<leader>agc",
+        "<leader>aG",
+        nil,
+        desc = "Gemini Sessions",
+        silent = true,
+      },
+      {
+        "<leader>aGc",
         ":CLIIntegration open_root Gemini --resume latest<CR>",
         desc = "Gemini Resume Latest",
         silent = true,
       },
       {
-        "<leader>ags",
+        "<leader>aGs",
         function()
           manage_gemini_sessions(false)
         end,
@@ -311,17 +326,10 @@ return {
         silent = true,
       },
       {
-        "<leader>agd",
+        "<leader>aGd",
         delete_all_gemini_sessions,
         desc = "Gemini Delete Project Sessions",
         silent = true,
-      },
-      {
-        "<leader>ag",
-        ":CLIIntegration open_root Gemini --dont-save-session<CR>",
-        desc = "Gemini Ask",
-        silent = true,
-        mode = { "v" },
       },
     },
   },
