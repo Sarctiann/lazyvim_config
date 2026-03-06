@@ -252,7 +252,7 @@ return {
         {
           name = "Augment",
           cli_cmd = auggie_op,
-          ready_text_flag = "Version",
+          cli_ready_flags = { search_for = "Version" },
           start_with_text = function(visual_text)
             if visual_text then
               return "Explain this code:\n```\n" .. visual_text .. "\n```\n"

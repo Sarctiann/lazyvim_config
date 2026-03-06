@@ -271,11 +271,12 @@ end
 return {
   company_dirs = { "dir1", "dir2" },
   integrations = {
+    --- @type Cli-Integration.Integration[]
     integrations_overrides = {
       {
         name = "Gemini",
         cli_cmd = "gemini",
-        ready_text_flag = "Logged in with Google",
+        cli_ready_flags = { search_for = "Type your", from_line = 15, lines_amt = 10 },
         start_with_text = function(visual_text)
           if visual_text then
             return "Explain this code:\n```\n" .. visual_text .. "\n```\n"
