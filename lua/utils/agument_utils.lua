@@ -14,189 +14,76 @@ function M.delete_all_augment_sessions()
   end)
 end
 
--- NOTE: Function to manage Augment sessions (list, delete, resume)
+-- NOTE: Function to manage Augment sessions (Uses plugin hooks with Lazy Load)
 function M.manage_augment_sessions(show_all)
   local sessions_dir = vim.fn.expand("~/.augment/sessions")
 
-  if vim.fn.isdirectory(sessions_dir) == 0 then
-    vim.notify("No sessions directory found at " .. sessions_dir, vim.log.levels.WARN)
-    return
-  end
+  require("cli-integration.hooks").manage_sessions({
+    name = "Augment",
+    resume_cmd = "CLIIntegration open_root Augment session resume %s",
+    show_all = show_all,
+    get_sessions = function()
+      local sessions = {}
+      local files = vim.fn.glob(sessions_dir .. "/*.json", false, true)
 
-  local session_files = vim.fn.glob(sessions_dir .. "/*.json", false, true)
+      for _, file_path in ipairs(files) do
+        local f = io.open(file_path, "r")
+        if f then
+          local content = f:read("*all")
+          f:close()
+          local ok, data = pcall(vim.json.decode, content)
 
-  if #session_files == 0 then
-    vim.notify("No Augment sessions found", vim.log.levels.INFO)
-    return
-  end
+          if ok and data then
+            local modified = data.modified or data.created or "Unknown"
+            local session_id = data.sessionId or vim.fn.fnamemodify(file_path, ":t:r")
 
-  -- NOTE: Get current git root
-  local git_root = vim.fn.systemlist("git rev-parse --show-toplevel")[1]
-  local current_workspace = git_root and git_root or vim.fn.getcwd()
-
-  local sessions = {}
-  for _, file_path in ipairs(session_files) do
-    local file = io.open(file_path, "r")
-    if file then
-      local content = file:read("*all")
-      file:close()
-
-      local ok, session_data = pcall(vim.json.decode, content)
-      if ok and session_data then
-        local modified = session_data.modified or session_data.created or "Unknown"
-        local session_id = session_data.sessionId or vim.fn.fnamemodify(file_path, ":t:r")
-
-        -- NOTE: Get workspace from session data
-        local session_workspace = "Unknown"
-        if session_data.chatHistory and #session_data.chatHistory > 0 then
-          local first_exchange = session_data.chatHistory[1].exchange
-          if first_exchange and first_exchange.request_nodes then
-            for _, node in ipairs(first_exchange.request_nodes) do
-              if node.ide_state_node and node.ide_state_node.workspace_folders then
-                local folders = node.ide_state_node.workspace_folders
-                if folders[1] and folders[1].repository_root then
-                  session_workspace = folders[1].repository_root
-                  break
+            local session_workspace = "Unknown"
+            if data.chatHistory and #data.chatHistory > 0 then
+              local first_exchange = data.chatHistory[1].exchange
+              if first_exchange and first_exchange.request_nodes then
+                for _, node in ipairs(first_exchange.request_nodes) do
+                  if node.ide_state_node and node.ide_state_node.workspace_folders then
+                    local folders = node.ide_state_node.workspace_folders
+                    if folders[1] and folders[1].repository_root then
+                      session_workspace = folders[1].repository_root
+                      break
+                    end
+                  end
                 end
               end
             end
-          end
-        end
 
-        -- NOTE: Filter by workspace if not showing all
-        local should_include = show_all or session_workspace == current_workspace
-
-        if should_include then
-          local first_message = "No messages"
-          if session_data.chatHistory and #session_data.chatHistory > 0 then
-            local first_exchange = session_data.chatHistory[1].exchange
-            if first_exchange and first_exchange.request_message then
-              first_message = first_exchange.request_message:gsub("\n", " "):sub(1, 60)
-              if #first_exchange.request_message > 60 then
-                first_message = first_message .. "..."
+            local first_message = "No messages"
+            if data.chatHistory and #data.chatHistory > 0 then
+              local exchange = data.chatHistory[1].exchange
+              if exchange and exchange.request_message then
+                first_message = exchange.request_message:gsub("\n", " "):sub(1, 60)
+                if #exchange.request_message > 60 then
+                  first_message = first_message .. "..."
+                end
               end
             end
+
+            local date = modified:match("(%d%d%d%d%-%d%d%-%d%d)") or "Unknown"
+            local time = modified:match("T(%d%d:%d%d)") or ""
+
+            table.insert(sessions, {
+              id = session_id,
+              modified = modified,
+              workspace = session_workspace,
+              file_path = file_path,
+              display = string.format("[%s %s] %s", date, time, first_message),
+            })
           end
-
-          local modified_date = modified:match("(%d%d%d%d%-%d%d%-%d%d)") or modified
-          local modified_time = modified:match("T(%d%d:%d%d)") or ""
-
-          table.insert(sessions, {
-            id = session_id,
-            file_path = file_path,
-            display = string.format("[%s %s] %s", modified_date, modified_time, first_message),
-            modified = modified,
-          })
         end
       end
-    end
-  end
-
-  -- NOTE: If no sessions found for current workspace and not showing all, show all sessions
-  if #sessions == 0 and not show_all then
-    vim.notify("No sessions found for this workspace, showing all sessions", vim.log.levels.INFO)
-    vim.schedule(function()
-      manage_augment_sessions(true)
-    end)
-    return
-  end
-
-  if #sessions == 0 then
-    vim.notify("No Augment sessions found", vim.log.levels.INFO)
-    return
-  end
-
-  -- NOTE: Sort by modified date (most recent first)
-  table.sort(sessions, function(a, b)
-    return a.modified > b.modified
-  end)
-
-  local display_items = {}
-  for _, session in ipairs(sessions) do
-    table.insert(display_items, session.display)
-  end
-
-  -- NOTE: Add special items at the beginning
-  table.insert(display_items, 1, ">>> 🔄 Toggle All Sessions")
-  table.insert(display_items, 2, ">>> ➕ Create New Session")
-
-  local scope_text = show_all and "[All Sessions]" or "[Current Workspace]"
-
-  -- NOTE: Schedule moving to the third item (first session) after the select opens
-  vim.schedule(function()
-    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<C-j><C-j>", true, false, true), "n", false)
-  end)
-
-  vim.ui.select(display_items, {
-    prompt = "Augment Sessions " .. scope_text .. " (Esc: Cancel)",
-  }, function(choice, idx)
-    if not choice or not idx then
-      return
-    end
-
-    -- NOTE: Handle special items
-    if idx == 1 then
-      -- NOTE: Toggle all sessions
-      manage_augment_sessions(not show_all)
-      return
-    elseif idx == 2 then
-      -- NOTE: Create new session
-      vim.cmd("CLIIntegration open_root Augment")
-      vim.notify("Creating new Augment session", vim.log.levels.INFO)
-      return
-    end
-
-    -- NOTE: Adjust index for actual sessions (subtract special items)
-    local session_idx = idx - 2
-    if session_idx < 1 or session_idx > #sessions then
-      return
-    end
-
-    local session = sessions[session_idx]
-
-    -- NOTE: Show action menu
-    vim.ui.select({ "Resume", "Delete", "Go Back" }, {
-      prompt = "Action for session (Esc: Cancel)",
-    }, function(action)
-      if action == "Resume" then
-        vim.cmd("CLIIntegration open_root Augment session resume " .. session.id)
-        vim.notify("Resuming session: " .. session.id, vim.log.levels.INFO)
-        -- NOTE: Focus the CLI integration window after it opens
-        vim.defer_fn(function()
-          for _, win in ipairs(vim.api.nvim_list_wins()) do
-            local buf = vim.api.nvim_win_get_buf(win)
-            -- NOTE: Check if it's a terminal buffer (CLI integration uses terminal)
-            if vim.api.nvim_get_option_value("buftype", { buf = buf }) == "terminal" then
-              vim.api.nvim_set_current_win(win)
-              vim.cmd("startinsert")
-              break
-            end
-          end
-        end, 100)
-      elseif action == "Delete" then
-        vim.ui.select({ "Yes", "No" }, {
-          prompt = "⚠️  Delete this session? This action cannot be undone!",
-        }, function(confirm)
-          if confirm == "Yes" then
-            vim.fn.delete(session.file_path)
-            vim.notify("✓ Session deleted: " .. session.id, vim.log.levels.INFO)
-            vim.schedule(function()
-              manage_augment_sessions(show_all)
-            end)
-          else
-            vim.notify("Deletion cancelled", vim.log.levels.INFO)
-            vim.schedule(function()
-              manage_augment_sessions(show_all)
-            end)
-          end
-        end)
-      elseif action == "Go Back" then
-        vim.schedule(function()
-          manage_augment_sessions(show_all)
-        end)
-      end
-    end)
-  end)
+      return sessions
+    end,
+    delete_cmd = function(session)
+      vim.fn.delete(session.file_path)
+      vim.notify("✓ Session deleted: " .. session.id, vim.log.levels.INFO)
+    end,
+  })
 end
 
 return M
