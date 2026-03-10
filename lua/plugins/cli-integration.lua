@@ -18,7 +18,7 @@ return {
       -- NOTE: Global config
       show_help_on_open = true,
       new_lines_amount = 1,
-      window_width = 34,
+      window_width = 40,
       window_padding = 1,
       terminal_keys = {
         terminal_mode = {
