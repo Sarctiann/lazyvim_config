@@ -62,18 +62,21 @@ function M.manage_claude_sessions(show_all)
                   if data.timestamp then
                     last_updated = data.timestamp
                   end
-                  if first_message == "No messages" and data.type == "user" and data.message then
+                  if data.type == "custom-title" and data.customTitle then
+                    first_message = '" ' .. string.upper(data.customTitle) .. ' "'
+                  end
+                  if
+                    (first_message == "No messages" or first_message == "<Message Content Too Complex>")
+                    and data.type == "user"
+                    and data.message
+                  then
                     local text = data.message.content
                     if type(text) == "table" then
-                      local combined = ""
-                      for _, part in ipairs(text) do
-                        combined = combined .. (part.text or part or "")
-                      end
-                      text = combined
+                      text = "<Message Content Too Complex>"
                     end
                     if type(text) == "string" and text ~= "" then
-                      first_message = text:gsub("\n", " "):sub(1, 60)
-                      if #text > 60 then
+                      first_message = text:gsub("\n", " "):sub(1, 40)
+                      if #text > 40 then
                         first_message = first_message .. "..."
                       end
                     end
@@ -85,6 +88,9 @@ function M.manage_claude_sessions(show_all)
               local date = last_updated:match("(%d%d%d%d%-%d%d%-%d%d)") or "Unknown"
               local time = last_updated:match("T(%d%d:%d%d)") or ""
               local display_project = project_name:gsub("^%-", ""):gsub("-", "/")
+              if #display_project > 30 then
+                display_project = "..." .. display_project:sub(-27)
+              end
 
               table.insert(sessions, {
                 id = session_id,

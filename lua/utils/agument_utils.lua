@@ -27,8 +27,7 @@ function M.delete_all_augment_sessions(cache_dir)
     prompt = "⚠️  Delete ALL Augment sessions? This action cannot be undone!",
   }, function(choice)
     if choice == "Yes" then
-      local cmd = cache_dir
-        and string.format("! auggie --augment-cache-dir %s session delete --all", cache_dir)
+      local cmd = cache_dir and string.format("! auggie --augment-cache-dir %s session delete --all", cache_dir)
         or "! auggie session delete --all"
       vim.cmd(cmd)
       vim.notify("✓ All Augment sessions have been deleted", vim.log.levels.INFO)
@@ -44,12 +43,10 @@ end
 function M.manage_augment_sessions(show_all, cache_dir)
   cache_dir = cache_dir or M.get_augment_cache_dir()
 
-  local sessions_dir = cache_dir
-    and (cache_dir .. "/sessions")
-    or vim.fn.expand("~/.augment/sessions")
+  local sessions_dir = cache_dir and (cache_dir .. "/sessions") or vim.fn.expand("~/.augment/sessions")
 
   local resume_cmd = cache_dir
-    and string.format("CLIIntegration open_root Augment --augment-cache-dir %s session resume %%s", cache_dir)
+      and string.format("CLIIntegration open_root Augment --augment-cache-dir %s session resume %%s", cache_dir)
     or "CLIIntegration open_root Augment session resume %s"
 
   require("cli-integration.hooks").manage_sessions({
@@ -92,10 +89,12 @@ function M.manage_augment_sessions(show_all, cache_dir)
               local exchange = data.chatHistory[1].exchange
               if exchange then
                 -- Try to use customTitle first, fallback to request_message
-                if exchange.customTitle and exchange.customTitle ~= "" then
-                  first_message = exchange.customTitle:gsub("\n", " "):sub(1, 60)
-                  if #exchange.customTitle > 60 then
-                    first_message = first_message .. "..."
+                if data.customTitle and data.customTitle ~= "" then
+                  first_message = data.customTitle:gsub("\n", " "):sub(1, 60)
+                  if #data.customTitle > 60 then
+                    first_message = '" ' .. first_message .. '... "'
+                  else
+                    first_message = '" ' .. first_message .. ' "'
                   end
                 elseif exchange.request_message then
                   first_message = exchange.request_message:gsub("\n", " "):sub(1, 60)
