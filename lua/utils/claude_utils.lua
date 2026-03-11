@@ -4,7 +4,7 @@ local M = {}
 function M.delete_all_claude_sessions()
   local base_dir = vim.fn.expand("~/.claude/projects")
   local current_path = require("cli-integration.hooks").get_current_workspace()
-  local project_dir_name = current_path:gsub("/", "-")
+  local project_dir_name = current_path:gsub("[/._]", "-")
   local project_dir = base_dir .. "/" .. project_dir_name
 
   local options = { "Current Project Only", "ALL Projects", "Cancel" }
@@ -36,17 +36,23 @@ end
 -- NOTE: Claude session manager (Uses plugin hooks with Lazy Load)
 function M.manage_claude_sessions(show_all)
   local base_dir = vim.fn.expand("~/.claude/projects")
-  require("cli-integration.hooks").manage_sessions({
+  local hooks = require("cli-integration.hooks")
+  hooks.manage_sessions({
     name = "Claude",
     resume_cmd = "CLIIntegration open_root Claude --resume %s",
     show_all = show_all,
     get_sessions = function()
       local sessions = {}
+      local current_ws = hooks.get_current_workspace()
+      local current_ws_dir = current_ws:gsub("[/._]", "-")
       local project_dirs = vim.fn.glob(base_dir .. "/*", false, true)
       for _, dir in ipairs(project_dirs) do
         if vim.fn.isdirectory(dir) == 1 then
           local project_name = vim.fn.fnamemodify(dir, ":t")
-          local workspace_path = project_name:gsub("-", "/")
+          -- Claude encodes paths as dir names by replacing "/" with "-", which is ambiguous
+          -- (can't distinguish path separators from actual dashes in dir names).
+          -- Use the real workspace path only when we can confirm the match; otherwise keep raw dir name.
+          local workspace_path = (project_name == current_ws_dir) and current_ws or project_name
 
           local files = vim.fn.glob(dir .. "/*.jsonl", false, true)
           for _, file_path in ipairs(files) do
@@ -87,7 +93,7 @@ function M.manage_claude_sessions(show_all)
 
               local date = last_updated:match("(%d%d%d%d%-%d%d%-%d%d)") or "Unknown"
               local time = last_updated:match("T(%d%d:%d%d)") or ""
-              local display_project = project_name:gsub("^%-", ""):gsub("-", "/")
+              local display_project = project_name:gsub("^%-", "")
               if #display_project > 30 then
                 display_project = "..." .. display_project:sub(-27)
               end
