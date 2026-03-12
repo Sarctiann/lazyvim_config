@@ -1,61 +1,28 @@
 local M = {}
 
--- NOTE: Removes socket directories for Neovim processes that are no longer alive.
--- nvim-mcp-server scans all sockets via auto-discovery and crashes with an unhandled
--- exception when it hits a stale socket, so we clean them up before launching Claude.
-local function cleanup_stale_nvim_sockets()
-  local tmpdir = os.getenv("TMPDIR") or "/tmp"
-  local socket_files = vim.fn.glob(tmpdir .. "nvim.*/**/nvim.*.0", false, true)
-  for _, socket_path in ipairs(socket_files) do
-    local pid = socket_path:match("nvim%.(%d+)%.0$")
-    if pid then
-      -- kill -0 checks if the process exists without sending a signal
-      local alive = os.execute("kill -0 " .. pid .. " 2>/dev/null")
-      if alive ~= 0 then
-        vim.fn.delete(vim.fn.fnamemodify(socket_path, ":h"), "rf")
-      end
-    end
-  end
-end
-
--- NOTE: Writes/updates .mcp.json in the given directory so that nvim-mcp-server
--- receives the current Neovim socket path via the NVIM env var.
--- Call this from an integration's on_open hook so Claude Code can open files
--- in the parent Neovim instance through the nvim MCP server.
-function M.write_nvim_mcp_config(working_dir)
-  cleanup_stale_nvim_sockets()
-  local socket = vim.v.servername
-  if not socket or socket == "" then
-    return
-  end
-
-  local mcp_file = working_dir .. "/.mcp.json"
-
-  local existing = {}
-  local f = io.open(mcp_file, "r")
-  if f then
-    local content = f:read("*a")
-    f:close()
-    local ok, parsed = pcall(vim.json.decode, content)
-    if ok and type(parsed) == "table" then
-      existing = parsed
-    end
-  end
-
-  existing.mcpServers = existing.mcpServers or {}
-  existing.mcpServers.nvim = vim.tbl_deep_extend("force", existing.mcpServers.nvim or {}, {
-    type = "stdio",
-    command = "npx",
-    args = { "nvim-mcp-server" },
-    env = { NVIM = socket },
-  })
-
-  local out = io.open(mcp_file, "w")
-  if out then
-    out:write(vim.json.encode(existing))
-    out:close()
-  end
-end
+-- NOTE: IMPORTANT!!!
+-- WARN:
+-- configure your nvim-mcp-server to work with claude by running
+-- this command in your terminal (only needs to be done once):
+--     claude mcp add nvim -s user -e NVIM=\$NVIM -- "npx" -y nvim-mcp-server
+-- It should result in the following entry in your ~/.gemini/settings.json file:
+--   {
+--     ...
+--     "mcpServers": {
+--       "nvim": {
+--         "type": "stdio",
+--         "command": "npx",
+--         "args": [
+--           "-y",
+--           "nvim-mcp-server"
+--          ],
+--         "env": {
+--           "NVIM": "$NVIM"
+--         }
+--       }
+--     }
+--     ...
+--   }
 
 -- NOTE: Function to delete Claude sessions
 function M.delete_all_claude_sessions()

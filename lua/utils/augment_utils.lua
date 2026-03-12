@@ -1,4 +1,28 @@
 local M = {}
+--
+-- NOTE: IMPORTANT!!!
+-- WARN:
+-- configure your nvim-mcp-server to work with auggie by running
+-- this command in your terminal (only needs to be done once):
+--     auggie mcp add nvim --command npx --args "-y nvim-mcp-server" -e NVIM=\$NVIM
+-- It should result in the following entry in your ~/.augment/settings.json file:
+--   {
+--     ...
+--     "mcpServers": {
+--       "nvim": {
+--         "type": "stdio",
+--         "command": "npx",
+--         "args": [
+--           "-y",
+--           "nvim-mcp-server"
+--          ],
+--         "env": {
+--           "NVIM": "$NVIM"
+--         }
+--       }
+--     }
+--     ...
+--   }
 
 -- NOTE: Helper function to get the augment cache directory
 -- Returns the cache directory path based on current working directory and company_dirs
