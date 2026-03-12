@@ -1,28 +1,4 @@
 local M = {}
---
--- NOTE: IMPORTANT!!!
--- WARN:
--- configure your nvim-mcp-server to work with auggie by running
--- this command in your terminal (only needs to be done once):
---     auggie mcp add nvim --command npx --args "-y nvim-mcp-server" -e NVIM=\$NVIM
--- It should result in the following entry in your ~/.augment/settings.json file:
---   {
---     ...
---     "mcpServers": {
---       "nvim": {
---         "type": "stdio",
---         "command": "npx",
---         "args": [
---           "-y",
---           "nvim-mcp-server"
---          ],
---         "env": {
---           "NVIM": "$NVIM"
---         }
---       }
---     }
---     ...
---   }
 
 -- NOTE: Helper function to get the augment cache directory
 -- Returns the cache directory path based on current working directory and company_dirs
@@ -149,6 +125,46 @@ function M.manage_augment_sessions(show_all, cache_dir)
       vim.notify("✓ Session deleted: " .. session.id, vim.log.levels.INFO)
     end,
   })
+end
+
+-- NOTE: Function to inject env vars into augment's settings.json MCP server config
+-- @param cache_dir string Path to the augment cache directory (contains settings.json)
+-- @param env_vars table Table with structure { mcp_server_name = { VAR = value } }
+--   Overwrites matching variables or adds them if they don't exist
+function M.on_open_auggie(cache_dir, env_vars)
+  local settings_path = cache_dir .. "/settings.json"
+  local f = io.open(settings_path, "r")
+  if not f then
+    vim.notify("on_open_auggie: could not open " .. settings_path, vim.log.levels.WARN)
+    return
+  end
+
+  local content = f:read("*all")
+  f:close()
+
+  local ok, data = pcall(vim.json.decode, content)
+  if ok and data then
+    data.mcpServers = data.mcpServers or {}
+    for server_name, vars in pairs(env_vars) do
+      if data.mcpServers[server_name] then
+        data.mcpServers[server_name].env = data.mcpServers[server_name].env or {}
+        for var_name, value in pairs(vars) do
+          data.mcpServers[server_name].env[var_name] = value
+        end
+      end
+    end
+
+    local new_content = vim.json.encode(data)
+    local wf = io.open(settings_path, "w")
+    if wf then
+      wf:write(new_content)
+      wf:close()
+    else
+      vim.notify("on_open_auggie: could not write " .. settings_path, vim.log.levels.ERROR)
+    end
+  else
+    vim.notify("on_open_auggie: failed to parse settings.json", vim.log.levels.ERROR)
+  end
 end
 
 return M

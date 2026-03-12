@@ -1,29 +1,5 @@
 local M = {}
 
--- gemini mcp add nvim npx -e NVIM=\$NVIM -s user -- -y nvim-mcp-server
--- NOTE: IMPORTANT!!!
--- WARN:
--- configure your nvim-mcp-server to work with claude by running
--- this command in your terminal (only needs to be done once):
---     gemini mcp add nvim npx -e NVIM=\$NVIM -s user -- -y nvim-mcp-server
--- It should result in the following entry in your ~/.claude.json file:
---   {
---     ...
---     "mcpServers": {
---       "nvim": {
---         "command": "npx",
---         "args": [
---           "-y",
---           "nvim-mcp-server"
---          ],
---         "env": {
---           "NVIM": "$NVIM"
---         }
---       }
---     }
---     ...
---   }
-
 -- NOTE: Function to delete Gemini sessions (current project or all)
 function M.delete_all_gemini_sessions()
   local base_dir = vim.fn.expand("~/.gemini/tmp")
