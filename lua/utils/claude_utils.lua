@@ -1,11 +1,11 @@
 local M = {}
 
--- NOTE: IMPORTANT!!!
+-- NOTE: IMPORTANT!!! This is addressing a different mcp server than the one used in augment_utils.
 -- WARN:
 -- configure your nvim-mcp-server to work with claude by running
 -- this command in your terminal (only needs to be done once):
 --     claude mcp add nvim -s user -e NVIM=\$NVIM -- "npx" -y nvim-mcp-server
--- It should result in the following entry in your ~/.gemini/settings.json file:
+-- It should result in the following entry in your ~/.claude/settings.json file:
 --   {
 --     ...
 --     "mcpServers": {

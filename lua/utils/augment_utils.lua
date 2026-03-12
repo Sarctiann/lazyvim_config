@@ -1,5 +1,29 @@
 local M = {}
 
+-- NOTE: IMPORTANT!!! This is a different mcp server than the one used in claude_utils.
+-- WARN:
+-- configure your nvim-mcp-server to work with auggie by going to the directory
+-- where you have your augment cache dir and running this command in your terminal (only needs to be done once):
+--    auggie --augment-cache-dir .augment_work_profile mcp add nvim -- nvim-mcp --connect auto
+-- It should result in the following entry in your ~/.gemini/settings.json file:
+--   {
+--     ...
+--     "mcpServers": {
+--       "nvim": {
+--         "type": "stdio",
+--         "command": "npx",
+--         "args": [
+--           "-y",
+--           "nvim-mcp-server"
+--          ],
+--         "env": {
+--           "NVIM": "$NVIM"
+--         }
+--       }
+--     }
+--     ...
+--   }
+
 -- NOTE: Helper function to get the augment cache directory
 -- Returns the cache directory path based on current working directory and company_dirs
 function M.get_augment_cache_dir()
