@@ -57,6 +57,40 @@ function M.delete_all_claude_sessions()
   end)
 end
 
+-- NOTE: Convert a UTC ISO-8601 timestamp to local date and time strings.
+-- os.time() treats a time table as *local* time, so feeding UTC values yields
+-- an epoch shifted by the UTC offset. Adding the offset back gives the true UTC
+-- epoch; os.date() then renders it in the system's local timezone.
+local function parse_timestamp_local(utc_timestamp)
+  local year, month, day, hour, min =
+    utc_timestamp:match("(%d+)-(%d+)-(%d+)T(%d+):(%d+)")
+  if not year then
+    return "Unknown", ""
+  end
+
+  -- Compute current UTC offset in seconds (e.g. -10800 for UTC-3)
+  local now = os.time()
+  local utc_offset = (tonumber(os.date("%H", now)) - tonumber(os.date("!%H", now))) * 3600
+    + (tonumber(os.date("%M", now)) - tonumber(os.date("!%M", now))) * 60
+  if utc_offset > 43200 then
+    utc_offset = utc_offset - 86400
+  elseif utc_offset < -43200 then
+    utc_offset = utc_offset + 86400
+  end
+
+  local pseudo_epoch = os.time({
+    year = tonumber(year),
+    month = tonumber(month),
+    day = tonumber(day),
+    hour = tonumber(hour),
+    min = tonumber(min),
+    sec = 0,
+    isdst = false,
+  })
+  local true_utc_epoch = pseudo_epoch + utc_offset
+  return os.date("%Y-%m-%d", true_utc_epoch), os.date("%H:%M", true_utc_epoch)
+end
+
 -- NOTE: Claude session manager (Uses plugin hooks with Lazy Load)
 function M.manage_claude_sessions(show_all)
   local base_dir = vim.fn.expand("~/.claude/projects")
@@ -115,8 +149,7 @@ function M.manage_claude_sessions(show_all)
               end
               f:close()
 
-              local date = last_updated:match("(%d%d%d%d%-%d%d%-%d%d)") or "Unknown"
-              local time = last_updated:match("T(%d%d:%d%d)") or ""
+              local date, time = parse_timestamp_local(last_updated)
               local display_project = project_name:gsub("^%-", "")
               if #display_project > 30 then
                 display_project = "..." .. display_project:sub(-27)
