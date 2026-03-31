@@ -69,9 +69,7 @@ function M.manage_augment_sessions(show_all, cache_dir)
 
   local sessions_dir = cache_dir and (cache_dir .. "/sessions") or vim.fn.expand("~/.augment/sessions")
 
-  local resume_cmd = cache_dir
-      and string.format("CLIIntegration open_root Augment --augment-cache-dir %s session resume %%s", cache_dir)
-    or "CLIIntegration open_root Augment session resume %s"
+  local resume_cmd = "CLIIntegration open_root Augment session resume %s"
 
   require("cli-integration.hooks").manage_sessions({
     name = "Augment",
