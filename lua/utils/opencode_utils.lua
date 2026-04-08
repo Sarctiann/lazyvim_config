@@ -1,0 +1,148 @@
+local M = {}
+
+local OPENCODE_DB = vim.fn.expand("~/.local/share/opencode/opencode.db")
+
+-- NOTE: Convert a Unix millisecond timestamp to a sortable ISO-like string
+-- and a formatted display pair (date, time).
+local function parse_timestamp(ts_ms)
+  local n = tonumber(ts_ms)
+  if not n or n == 0 then
+    return "0000-00-00T00:00:00", "Unknown", ""
+  end
+  local epoch = n / 1000
+  -- iso string used for sorting (comparable with string comparison)
+  local iso = os.date("!%Y-%m-%dT%H:%M:%S", epoch)
+  local date = os.date("!%Y-%m-%d", epoch)
+  local time = os.date("!%H:%M", epoch)
+  return iso, date, time
+end
+
+-- NOTE: Query all sessions from the SQLite database.
+-- Returns a list of Cli-Integration.Session objects.
+local function get_sessions()
+  local sessions = {}
+  local cmd = string.format(
+    "sqlite3 %s \"SELECT id, title, directory, time_updated FROM session ORDER BY time_updated DESC;\"",
+    vim.fn.shellescape(OPENCODE_DB)
+  )
+  local result = vim.fn.system(cmd)
+  if vim.v.shell_error ~= 0 or result == "" then
+    return sessions
+  end
+
+  for line in vim.gsplit(result, "\n", { trimempty = true }) do
+    -- Use a safe split on | that handles pipes in titles by anchoring on the
+    -- known-format trailing fields: directory (starts with /) and numeric timestamp.
+    -- Pattern: capture everything up to the last two | fields.
+    local id, rest = line:match("^(ses_[^|]+)|(.+)$")
+    if id and rest then
+      -- Split the rest from the right: last field is the numeric timestamp,
+      -- second-to-last is the directory (starts with /), the remainder is title.
+      local ts = rest:match("|(%d+)$")
+      local without_ts = rest:match("^(.+)|%d+$")
+      local directory = without_ts and without_ts:match("|(/[^|]+)$")
+      local title = (without_ts and directory) and without_ts:match("^(.+)|" .. vim.pesc(directory) .. "$")
+
+      if ts and directory and title then
+        local iso, date, time = parse_timestamp(ts)
+        local project_name = vim.fn.fnamemodify(directory, ":t")
+        if #project_name > 30 then
+          project_name = "..." .. project_name:sub(-27)
+        end
+        local display_title = title:gsub("\n", " "):sub(1, 50)
+        if #title > 50 then
+          display_title = display_title .. "..."
+        end
+
+        table.insert(sessions, {
+          id = id,
+          modified = iso,
+          workspace = directory,
+          display = string.format("[%s %s] (%s) %s", date, time, project_name, display_title),
+        })
+      end
+    end
+  end
+  return sessions
+end
+
+-- NOTE: OpenCode session manager (uses cli-integration hooks engine)
+function M.manage_opencode_sessions(show_all)
+  local hooks = require("cli-integration.hooks")
+  hooks.manage_sessions({
+    name = "OpenCode",
+    resume_cmd = "CLIIntegration open_root OpenCode -s %s",
+    show_all = show_all,
+    get_sessions = get_sessions,
+    delete_cmd = function(session)
+      local cmd = string.format(
+        "sqlite3 %s \"DELETE FROM session WHERE id='%s';\"",
+        vim.fn.shellescape(OPENCODE_DB),
+        session.id
+      )
+      vim.fn.system(cmd)
+      vim.notify("✓ Session deleted: " .. session.id, vim.log.levels.INFO)
+    end,
+  })
+end
+
+-- NOTE: Delete OpenCode sessions (current project or all)
+function M.delete_all_opencode_sessions()
+  local all_sessions = get_sessions()
+
+  local options = { "Current Project Only", "ALL Projects", "Cancel" }
+  vim.ui.select(options, { prompt = "⚠️ Delete OpenCode sessions?" }, function(choice)
+    if not choice or choice == "Cancel" then
+      return
+    end
+
+    local hooks = require("cli-integration.hooks")
+    local current_ws = hooks.get_current_workspace()
+
+    local session_ids = {}
+    local scope_desc = ""
+
+    if choice == "Current Project Only" then
+      for _, sess in ipairs(all_sessions) do
+        if sess.workspace == current_ws then
+          table.insert(session_ids, sess.id)
+        end
+      end
+      scope_desc = "current project"
+    else
+      for _, sess in ipairs(all_sessions) do
+        table.insert(session_ids, sess.id)
+      end
+      scope_desc = "ALL projects"
+    end
+
+    if #session_ids == 0 then
+      vim.notify("No OpenCode sessions found for " .. scope_desc, vim.log.levels.INFO)
+      return
+    end
+
+    vim.ui.select({ "Yes, Delete " .. #session_ids .. " sessions", "No, Cancel" }, {
+      prompt = "Confirm: Delete " .. #session_ids .. " sessions for " .. scope_desc .. "?",
+    }, function(confirm)
+      if confirm and confirm:match("^Yes") then
+        local deleted = 0
+        for _, id in ipairs(session_ids) do
+          local cmd = string.format(
+            "sqlite3 %s \"DELETE FROM session WHERE id='%s';\"",
+            vim.fn.shellescape(OPENCODE_DB),
+            id
+          )
+          vim.fn.system(cmd)
+          if vim.v.shell_error == 0 then
+            deleted = deleted + 1
+          end
+        end
+        vim.notify("✓ " .. deleted .. " session(s) deleted", vim.log.levels.INFO)
+      else
+        vim.notify("Deletion cancelled", vim.log.levels.INFO)
+      end
+    end)
+  end)
+end
+
+return M
