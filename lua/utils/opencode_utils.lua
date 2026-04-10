@@ -30,11 +30,19 @@ local M = {}
 --    },
 --  }
 
+M.OPENCODE_SERVER_USERNAME = vim.fn.getenv("OPENCODE_SERVER_USERNAME") or ""
+M.OPENCODE_SERVER_PASSWORD = vim.fn.getenv("OPENCODE_SERVER_PASSWORD") or ""
 M.OPENCODE_HOST = "127.0.0.1"
 M.OPENCODE_PORT = 4096
 
 function M.get_server_url()
-  return string.format("http://%s:%d", M.OPENCODE_HOST, M.OPENCODE_PORT)
+  return string.format(
+    "http://%s:%s@%s:%d",
+    M.OPENCODE_SERVER_USERNAME,
+    M.OPENCODE_SERVER_PASSWORD,
+    M.OPENCODE_HOST,
+    M.OPENCODE_PORT
+  )
 end
 
 local OPENCODE_DB = vim.fn.expand("~/.local/share/opencode/opencode.db")
@@ -288,6 +296,68 @@ function M.kill_opencode_server()
       end, 100)
     end,
   })
+end
+
+M._tunnel_pid = nil
+
+function M.start_tunnel()
+  local password = os.getenv("OPENCODE_SERVER_PASSWORD")
+  if not password or password == "" then
+    vim.notify("OPENCODE_SERVER_PASSWORD no configurada. Configurala en ~/.zshrc", vim.log.levels.ERROR)
+    return
+  end
+
+  is_opencode_server_running(function(running)
+    if not running then
+      vim.notify("OpenCode server no está corriendo. Inícialo primero con <leader>asr", vim.log.levels.WARN)
+      return
+    end
+
+    local handle, pid = vim.loop.spawn("npx", {
+      args = { "localtunnel", "--port", "4096" },
+      stdio = { nil, nil, nil },
+      detached = true,
+    }, function()
+      M._tunnel_pid = nil
+      vim.schedule(function()
+        vim.notify("Tunnel localtunnel cerrado", vim.log.levels.INFO)
+      end)
+    end)
+
+    if handle then
+      vim.loop.unref(handle)
+      M._tunnel_pid = pid
+      vim.notify("Tunnel iniciando... (espera 5-10 segundos)", vim.log.levels.INFO)
+      vim.defer_fn(function()
+        vim.notify("Tunnel activo! Ejecuta 'ocht' en terminal para ver la URL", vim.log.levels.INFO)
+      end, 8000)
+    else
+      vim.notify("Error al iniciar localtunnel", vim.log.levels.ERROR)
+    end
+  end)
+end
+
+function M.stop_tunnel()
+  if M._tunnel_pid then
+    vim.fn.jobstart({ "pkill", "-f", "localtunnel" }, {
+      stdout = "/dev/null",
+      stderr = "/dev/null",
+      on_exit = function()
+        M._tunnel_pid = nil
+        vim.notify("Tunnel detenido", vim.log.levels.INFO)
+      end,
+    })
+  else
+    vim.notify("No hay tunnel activo", vim.log.levels.WARN)
+  end
+end
+
+function M.toggle_tunnel()
+  if M._tunnel_pid then
+    M.stop_tunnel()
+  else
+    M.start_tunnel()
+  end
 end
 
 return M
