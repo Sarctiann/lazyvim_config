@@ -30,16 +30,33 @@ local M = {}
 --    },
 --  }
 
-M.OPENCODE_SERVER_USERNAME = vim.fn.getenv("OPENCODE_SERVER_USERNAME") or ""
-M.OPENCODE_SERVER_PASSWORD = vim.fn.getenv("OPENCODE_SERVER_PASSWORD") or ""
+M.OPENCODE_SERVER_USERNAME = "opencode"
+M.OPENCODE_SERVER_PASSWORD = "open-sarc-code"
+
+local function load_credentials()
+  local cred_file = vim.fn.expand("~/.config/opencode/.server_credentials")
+  local handle = io.open(cred_file, "r")
+  if handle then
+    for line in handle:lines() do
+      local username = line:match('^OPENCODE_SERVER_USERNAME="([^"]+)"')
+      local password = line:match('^OPENCODE_SERVER_PASSWORD="([^"]+)"')
+      if username and password then
+        M.OPENCODE_SERVER_USERNAME = username
+        M.OPENCODE_SERVER_PASSWORD = password
+        break
+      end
+    end
+    handle:close()
+  end
+end
+
+load_credentials()
 M.OPENCODE_HOST = "127.0.0.1"
 M.OPENCODE_PORT = 4096
 
 function M.get_server_url()
   return string.format(
-    "http://%s:%s@%s:%d",
-    M.OPENCODE_SERVER_USERNAME,
-    M.OPENCODE_SERVER_PASSWORD,
+    "http://%s:%d",
     M.OPENCODE_HOST,
     M.OPENCODE_PORT
   )
@@ -299,57 +316,103 @@ function M.kill_opencode_server()
 end
 
 M._tunnel_pid = nil
+M._tunnel_url = nil
 
 function M.start_tunnel()
-  local password = os.getenv("OPENCODE_SERVER_PASSWORD")
-  if not password or password == "" then
-    vim.notify("OPENCODE_SERVER_PASSWORD no configurada. Configurala en ~/.zshrc", vim.log.levels.ERROR)
+  if not M.OPENCODE_SERVER_PASSWORD or M.OPENCODE_SERVER_PASSWORD == "" then
+    vim.notify("OPENCODE_SERVER_PASSWORD not set. Configure it in ~/.config/opencode/.server_credentials", vim.log.levels.ERROR)
     return
   end
 
   is_opencode_server_running(function(running)
     if not running then
-      vim.notify("OpenCode server no está corriendo. Inícialo primero con <leader>asr", vim.log.levels.WARN)
+      vim.notify("OpenCode server not running. Start it first with <leader>asr", vim.log.levels.WARN)
       return
     end
 
-    local handle, pid = vim.loop.spawn("npx", {
-      args = { "localtunnel", "--port", "4096" },
-      stdio = { nil, nil, nil },
+    local uv = vim.loop
+    local stdin = uv.new_pipe(false)
+    local stdout = uv.new_pipe(false)
+    local stderr = uv.new_pipe(false)
+
+    if not stdin or not stdout or not stderr then
+      vim.notify("Failed to create pipes for tunnel", vim.log.levels.ERROR)
+      return
+    end
+
+    local function cleanup()
+      stdin:close()
+      stdout:close()
+      stderr:close()
+    end
+
+    local handle, pid = uv.spawn("npx", {
+      args = { "untun", "tunnel", "http://localhost:4096", "--yes" },
+      stdio = { stdin, stdout, stderr },
       detached = true,
     }, function()
       M._tunnel_pid = nil
-      vim.schedule(function()
-        vim.notify("Tunnel localtunnel cerrado", vim.log.levels.INFO)
-      end)
+      M._tunnel_url = nil
+      cleanup()
     end)
 
-    if handle then
-      vim.loop.unref(handle)
-      M._tunnel_pid = pid
-      vim.notify("Tunnel iniciando... (espera 5-10 segundos)", vim.log.levels.INFO)
-      vim.defer_fn(function()
-        vim.notify("Tunnel activo! Ejecuta 'ocht' en terminal para ver la URL", vim.log.levels.INFO)
-      end, 8000)
-    else
-      vim.notify("Error al iniciar localtunnel", vim.log.levels.ERROR)
+    if not handle then
+      vim.notify("Failed to start untun", vim.log.levels.ERROR)
+      cleanup()
+      return
     end
+
+    vim.loop.unref(handle)
+    M._tunnel_pid = pid
+
+    local url_buffer = ""
+    local found_url = false
+
+    uv.read_start(stdout, function(err, data)
+      if err or not data then
+        return
+      end
+      url_buffer = url_buffer .. data
+
+      local url = url_buffer:match("https://[%w%-]+%.trycloudflare%.com")
+      if url and not found_url then
+        found_url = true
+        M._tunnel_url = url
+        vim.schedule(function()
+          vim.fn.setreg("+", url)
+          vim.notify("Tunnel active: " .. url .. " (copied to clipboard)", vim.log.levels.INFO)
+        end)
+      end
+    end)
+
+    uv.read_start(stderr, function(err, data)
+      if err or not data then
+        return
+      end
+    end)
+
+    vim.notify("Starting tunnel... waiting for URL", vim.log.levels.INFO)
   end)
 end
 
 function M.stop_tunnel()
   if M._tunnel_pid then
-    vim.fn.jobstart({ "pkill", "-f", "localtunnel" }, {
+    vim.fn.jobstart({ "pkill", "-f", "untun" }, {
       stdout = "/dev/null",
       stderr = "/dev/null",
       on_exit = function()
         M._tunnel_pid = nil
-        vim.notify("Tunnel detenido", vim.log.levels.INFO)
+        M._tunnel_url = nil
+        vim.notify("Tunnel stopped", vim.log.levels.INFO)
       end,
     })
   else
-    vim.notify("No hay tunnel activo", vim.log.levels.WARN)
+    vim.notify("No active tunnel", vim.log.levels.WARN)
   end
+end
+
+function M.get_tunnel_url()
+  return M._tunnel_url
 end
 
 function M.toggle_tunnel()
