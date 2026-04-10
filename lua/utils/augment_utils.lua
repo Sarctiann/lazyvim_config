@@ -1,6 +1,5 @@
 local M = {}
 
--- NOTE: IMPORTANT!!! This is a different mcp server than the one used in claude_utils.
 -- WARN:
 -- configure your nvim-mcp-server to work with auggie by going to the directory
 -- where you have your augment cache dir and running this command in your terminal (only needs to be done once):

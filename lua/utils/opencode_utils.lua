@@ -1,5 +1,42 @@
 local M = {}
 
+-- WARN:
+-- You will want to add the following MCP entries to your `~/.config/opencode/opencode.jsonc`
+-- if you have an `opencode.json` instead, remove the comments.
+--
+--  // MCP servers configuration
+--  "mcp": {
+--    // Neovim MCP server for buffer access and editing (bigcodegen)
+--    "nvim-complete": {
+--      "type": "local",
+--      "command": ["npx", "-y", "mcp-neovim-server"],
+--      "enabled": true,
+--      "environment": {
+--        // Enable shell commands execution through vim
+--        "ALLOW_SHELL_COMMANDS": "true",
+--        // Socket path for neovim connection (uses NVIM env var)
+--        "NVIM_SOCKET_PATH": "{env:NVIM}",
+--      },
+--    },
+--    // Alternative Neovim MCP server (nvim-mcp)
+--    "nvim-fast": {
+--      "type": "local",
+--      "command": ["nvim-mcp", "--connect", "auto"],
+--      "enabled": true,
+--      "environment": {
+--        // Socket path for neovim connection (uses NVIM env var)
+--        "NVIM": "{env:NVIM}",
+--      },
+--    },
+--  }
+
+M.OPENCODE_HOST = "127.0.0.1"
+M.OPENCODE_PORT = 4096
+
+function M.get_server_url()
+  return string.format("http://%s:%d", M.OPENCODE_HOST, M.OPENCODE_PORT)
+end
+
 local OPENCODE_DB = vim.fn.expand("~/.local/share/opencode/opencode.db")
 
 -- NOTE: Convert a Unix millisecond timestamp to a sortable ISO-like string
@@ -22,7 +59,7 @@ end
 local function get_sessions()
   local sessions = {}
   local cmd = string.format(
-    "sqlite3 %s \"SELECT id, title, directory, time_updated FROM session ORDER BY time_updated DESC;\"",
+    'sqlite3 %s "SELECT id, title, directory, time_updated FROM session ORDER BY time_updated DESC;"',
     vim.fn.shellescape(OPENCODE_DB)
   )
   local result = vim.fn.system(cmd)
@@ -75,11 +112,8 @@ function M.manage_opencode_sessions(show_all)
     show_all = show_all,
     get_sessions = get_sessions,
     delete_cmd = function(session)
-      local cmd = string.format(
-        "sqlite3 %s \"DELETE FROM session WHERE id='%s';\"",
-        vim.fn.shellescape(OPENCODE_DB),
-        session.id
-      )
+      local cmd =
+        string.format("sqlite3 %s \"DELETE FROM session WHERE id='%s';\"", vim.fn.shellescape(OPENCODE_DB), session.id)
       vim.fn.system(cmd)
       vim.notify("✓ Session deleted: " .. session.id, vim.log.levels.INFO)
     end,
@@ -127,11 +161,8 @@ function M.delete_all_opencode_sessions()
       if confirm and confirm:match("^Yes") then
         local deleted = 0
         for _, id in ipairs(session_ids) do
-          local cmd = string.format(
-            "sqlite3 %s \"DELETE FROM session WHERE id='%s';\"",
-            vim.fn.shellescape(OPENCODE_DB),
-            id
-          )
+          local cmd =
+            string.format("sqlite3 %s \"DELETE FROM session WHERE id='%s';\"", vim.fn.shellescape(OPENCODE_DB), id)
           vim.fn.system(cmd)
           if vim.v.shell_error == 0 then
             deleted = deleted + 1
@@ -143,6 +174,120 @@ function M.delete_all_opencode_sessions()
       end
     end)
   end)
+end
+
+local function is_opencode_server_running(callback)
+  local uv = vim.loop
+  local socket = uv.new_tcp()
+  local timer = uv.new_timer()
+  local finished = false
+
+  local function finish(running)
+    if finished then
+      return
+    end
+    finished = true
+    if timer then
+      timer:stop()
+      timer:close()
+    end
+    if socket then
+      socket:close()
+    end
+    vim.schedule(function()
+      callback(running)
+    end)
+  end
+
+  if socket then
+    socket:connect(M.OPENCODE_HOST, M.OPENCODE_PORT, function(err)
+      if err then
+        finish(false)
+        return
+      end
+      finish(true)
+    end)
+  else
+    print("Failed to create socket")
+  end
+
+  if timer then
+    timer:start(1000, 0, function()
+      finish(false)
+    end)
+  else
+    print("Failed to create timer")
+  end
+end
+
+function M.start_opencode_server()
+  if M._server_starting then
+    return
+  end
+
+  if vim.fn.executable("opencode") ~= 1 then
+    vim.notify("OpenCode binary not found in PATH", vim.log.levels.WARN)
+    return
+  end
+
+  is_opencode_server_running(function(running)
+    if running then
+      return
+    end
+
+    M._server_starting = true
+
+    local uv = vim.loop
+    local handle, pid
+    handle, pid = uv.spawn("opencode", {
+      args = { "serve", "--hostname", "0.0.0.0", "--port", tostring(M.OPENCODE_PORT), "--mdns" },
+      stdio = { nil, nil, nil }, -- Completely detached stdio
+      detached = true,
+    }, function()
+      M._server_starting = false
+      if handle then
+        handle:close()
+      end
+    end)
+
+    if handle then
+      uv.unref(handle) -- Key: Don't keep the event loop alive for this process
+      M._server_starting = false -- PID spawned successfully
+      vim.notify("OpenCode server started independently (PID: " .. pid .. ")", vim.log.levels.INFO)
+    else
+      M._server_starting = false
+      vim.notify("Failed to spawn OpenCode server", vim.log.levels.ERROR)
+    end
+  end)
+end
+
+function M.restart_opencode_server()
+  vim.fn.jobstart({ "pkill", "-f", "opencode serve" }, {
+    stdout = "/dev/null",
+    stderr = "/dev/null",
+    on_exit = function()
+      vim.defer_fn(function()
+        M.start_opencode_server()
+        vim.notify("OpenCode server restart command sent", vim.log.levels.INFO)
+      end, 500)
+    end,
+  })
+end
+
+function M.kill_opencode_server()
+  vim.fn.jobstart({ "pkill", "-f", "opencode serve" }, {
+    stdout = "/dev/null",
+    stderr = "/dev/null",
+    on_exit = function(_, exit_code)
+      vim.defer_fn(function()
+        if exit_code == 0 then
+          vim.notify("OpenCode server stopped", vim.log.levels.INFO)
+        else
+          vim.notify("No OpenCode server was running", vim.log.levels.WARN)
+        end
+      end, 100)
+    end,
+  })
 end
 
 return M

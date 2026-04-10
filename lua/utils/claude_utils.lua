@@ -1,6 +1,5 @@
 local M = {}
 
--- NOTE: IMPORTANT!!! This is addressing a different mcp server than the one used in augment_utils.
 -- WARN:
 -- configure your nvim-mcp-server to work with claude by running
 -- this command in your terminal (only needs to be done once):
