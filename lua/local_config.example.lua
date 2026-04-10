@@ -8,7 +8,11 @@ return {
     integrations_implementations = {
       {
         name = "OpenCode",
-        cli_cmd = "opencode attach " .. opencode_utils.get_server_url(),
+        cli_cmd = "export OPENCODE_SERVER_PASSWORD="
+          .. opencode_utils.OPENCODE_SERVER_PASSWORD
+          .. " && sleep .1 && opencode attach "
+          .. opencode_utils.get_server_url()
+          .. " --dir .",
         cli_ready_flags = { search_for = "Ask", from_line = 22, lines_amt = 12 },
         on_open = function(_, _)
           opencode_utils.start_opencode_server()
