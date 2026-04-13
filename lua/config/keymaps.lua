@@ -119,6 +119,23 @@ vim.keymap.set("n", "<leader>fC", function()
   end
 end, { desc = "Toggle Ghostty local config" })
 
+vim.keymap.set("n", "<leader>fO", function()
+  local config_path = vim.fn.expand("~/.config/opencode/opencode.jsonc")
+
+  local config_exists = vim.fn.bufexists(config_path) ~= 0
+
+  if config_exists then
+    local config_bufnr = vim.fn.bufnr(config_path)
+    if config_bufnr ~= -1 then
+      vim.cmd("bwipeout " .. config_bufnr)
+    end
+    vim.notify("Opencode config file closed", vim.log.levels.INFO)
+  else
+    vim.cmd("edit " .. vim.fn.fnameescape(config_path))
+    vim.notify("Opencode config file opened", vim.log.levels.INFO)
+  end
+end, { desc = "Toggle Opencode config" })
+
 vim.keymap.set("n", "<leader>gm", function()
   local pattern = "^<\\{7\\}\\|^=\\{7\\}\\|^>\\{7\\}"
   vim.fn.setreg("/", pattern)
