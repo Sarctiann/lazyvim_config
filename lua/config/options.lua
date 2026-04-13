@@ -30,7 +30,7 @@ vim.opt.colorcolumn = "80"
 vim.opt.spelllang = "en_us,es"
 
 -- Add Transparency to floating windows
-vim.opt.winblend = 15
+vim.opt.winblend = 7
 
 -- Ruby lsp settings || "../plugins/ruby.lua"
 vim.g.lazyvim_ruby_lsp = "ruby_lsp"
