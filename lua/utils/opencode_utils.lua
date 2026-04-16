@@ -347,7 +347,7 @@ function M.start_tunnel()
     end
 
     local handle, pid = uv.spawn("npx", {
-      args = { "untun", "tunnel", "http://localhost:4096", "--yes" },
+      args = { "untun", "tunnel", "http://localhost:4096" },
       stdio = { stdin, stdout, stderr },
       detached = true,
     }, function()
@@ -361,6 +361,9 @@ function M.start_tunnel()
       cleanup()
       return
     end
+
+    -- Auto-accept the cloudflared license/terms prompt
+    stdin:write("y\n", function() end)
 
     vim.loop.unref(handle)
     M._tunnel_pid = pid
