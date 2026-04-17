@@ -38,7 +38,8 @@ function M.get_augment_cache_dir()
   end
 
   -- Default to standard augment directory if no company dir is found
-  return nil
+  -- Return the user's standard augment dir so callers always get a usable path.
+  return vim.fn.expand("~/.augment")
 end
 
 -- NOTE: Function to delete all Augment sessions with confirmation
@@ -68,7 +69,19 @@ function M.manage_augment_sessions(show_all, cache_dir)
 
   local sessions_dir = cache_dir and (cache_dir .. "/sessions") or vim.fn.expand("~/.augment/sessions")
 
-  local resume_cmd = "CLIIntegration open_root Augment session resume %s"
+  -- Ensure the resume command passes the augment cache dir when available.
+  -- The cli-integration plugin will substitute the session id into the
+  -- "%s" placeholder. We must escape the %% when using string.format here.
+  local resume_cmd
+  if cache_dir then
+    -- Shell-escape the cache_dir to be safe for paths with spaces/special chars
+    local esc = vim.fn.shellescape(cache_dir)
+    -- Use '%%s' so that the eventual substitution performed by the hooks
+    -- (which replaces %s with the session id) still works.
+    resume_cmd = string.format("CLIIntegration open_root Augment session resume %%s --augment-cache-dir %s", esc)
+  else
+    resume_cmd = "CLIIntegration open_root Augment session resume %s"
+  end
 
   require("cli-integration.hooks").manage_sessions({
     name = "Augment",
