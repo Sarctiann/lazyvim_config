@@ -33,6 +33,7 @@ local M = {}
 M.OPENCODE_SERVER_USERNAME = "opencode"
 M.OPENCODE_SERVER_PASSWORD = "open-sarc-code"
 local OPENCODE_DB = vim.fn.expand("~/.local/share/opencode/opencode.db")
+local OPENCODE_MCP_CONFIG_FILE = vim.fn.expand("~/.config/opencode/opencode_nvim_mcps.jsonc")
 -- Precompute paths and JSON helpers at module load time to avoid calling
 -- vim.fn.expand or vim.fn.json_* inside fast event contexts.
 local STATE_FILE = vim.fn.expand("~/.local/share/opencode/state.json")
@@ -418,10 +419,20 @@ function M.start_opencode_server()
 
     M._server_starting = true
 
+    -- Build the environment by extending the current one
+    local env = {}
+    for k, v in pairs(vim.fn.environ()) do
+      table.insert(env, string.format("%s=%s", k, v))
+    end
+    table.insert(env, "OPENCODE_CONFIG=" .. OPENCODE_MCP_CONFIG_FILE)
+    table.insert(env, "OPENCODE_SERVER_USERNAME=" .. M.OPENCODE_SERVER_USERNAME)
+    table.insert(env, "OPENCODE_SERVER_PASSWORD=" .. M.OPENCODE_SERVER_PASSWORD)
+
     local uv = vim.loop
     local handle, pid
     handle, pid = uv.spawn("opencode", {
       args = { "serve", "--hostname", "0.0.0.0", "--port", tostring(M.OPENCODE_PORT), "--mdns" },
+      env = env,
       stdio = { nil, nil, nil }, -- Completely detached stdio
       detached = true,
     }, function()
