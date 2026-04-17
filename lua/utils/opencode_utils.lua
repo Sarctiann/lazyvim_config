@@ -32,6 +32,25 @@ local M = {}
 
 M.OPENCODE_SERVER_USERNAME = "opencode"
 M.OPENCODE_SERVER_PASSWORD = "open-sarc-code"
+local OPENCODE_DB = vim.fn.expand("~/.local/share/opencode/opencode.db")
+-- Precompute paths and JSON helpers at module load time to avoid calling
+-- vim.fn.expand or vim.fn.json_* inside fast event contexts.
+local STATE_FILE = vim.fn.expand("~/.local/share/opencode/state.json")
+
+local json = nil
+if vim.json and vim.json.encode and vim.json.decode then
+  json = { encode = vim.json.encode, decode = vim.json.decode }
+else
+  -- Fallback to vim.fn functions (may error in fast event contexts on older Neovim)
+  json = {
+    encode = function(t)
+      return vim.fn.json_encode(t)
+    end,
+    decode = function(s)
+      return vim.fn.json_decode(s)
+    end,
+  }
+end
 
 local function load_credentials()
   local cred_file = vim.fn.expand("~/.config/opencode/.server_credentials")
@@ -55,14 +74,195 @@ M.OPENCODE_HOST = "127.0.0.1"
 M.OPENCODE_PORT = 4096
 
 function M.get_server_url()
-  return string.format(
-    "http://%s:%d",
-    M.OPENCODE_HOST,
-    M.OPENCODE_PORT
-  )
+  return string.format("http://%s:%d", M.OPENCODE_HOST, M.OPENCODE_PORT)
 end
 
-local OPENCODE_DB = vim.fn.expand("~/.local/share/opencode/opencode.db")
+-- State file for sharing server/tunnel info between instances
+function M.state_file_path()
+  return STATE_FILE
+end
+
+function M.read_state()
+  local path = M.state_file_path()
+  local f = io.open(path, "r")
+  if not f then
+    return nil
+  end
+  local content = f:read("*a")
+  f:close()
+  if not content or content == "" then
+    return nil
+  end
+  local ok, tbl = pcall(json.decode, content)
+  if ok and type(tbl) == "table" then
+    return tbl
+  end
+  return nil
+end
+
+function M.write_state(tbl)
+  local path = M.state_file_path()
+  local dir = vim.fn.fnamemodify(path, ":h")
+  vim.fn.mkdir(dir, "p")
+  -- Use libuv API to get pid (vim.loop.os_getpid) instead of deprecated getpid
+  local pid_for_tmp = (vim.loop and vim.loop.os_getpid and vim.loop.os_getpid() or 0)
+  local tmp = path .. ".tmp." .. tostring(pid_for_tmp)
+  local content = json.encode(tbl or {})
+  -- Try to acquire lock before writing
+  local acquired = M._acquire_state_lock()
+
+  local f, err = io.open(tmp, "w")
+  if not f then
+    vim.notify("Failed to open temp state file: " .. (err or "unknown"), vim.log.levels.ERROR)
+    if acquired then
+      M._release_state_lock()
+    end
+    return
+  end
+  f:write(content)
+  f:close()
+  -- atomic replace
+  os.rename(tmp, path)
+  -- Release lock if we acquired it
+  if acquired then
+    M._release_state_lock()
+  end
+end
+
+-- Simple file lock implementation (best-effort)
+function M._acquire_state_lock()
+  local lock = STATE_FILE .. ".lock"
+  if vim.loop and vim.loop.fs_open then
+    local fd = vim.loop.fs_open(lock, "wx", 438)
+    if fd then
+      local pid = (vim.loop and vim.loop.os_getpid and vim.loop.os_getpid()) or 0
+      pcall(function()
+        vim.loop.fs_write(fd, tostring(pid), -1)
+      end)
+      vim.loop.fs_close(fd)
+      -- mark owned
+      M._state_lock_path = lock
+      return true
+    end
+    return false
+  else
+    -- fallback: create file if not exists
+    local f = io.open(lock, "r")
+    if f then
+      f:close()
+      return false
+    end
+    local w = io.open(lock, "w")
+    if w then
+      w:write(tostring(os.time()))
+      w:close()
+      M._state_lock_path = lock
+      return true
+    end
+    return false
+  end
+end
+
+function M._release_state_lock()
+  local lock = M._state_lock_path or (STATE_FILE .. ".lock")
+  pcall(function()
+    os.remove(lock)
+  end)
+  M._state_lock_path = nil
+end
+
+function M.clear_tunnel_state()
+  local s = M.read_state() or {}
+  s.tunnel = nil
+  M.write_state(s)
+end
+
+local function is_opencode_server_running(callback)
+  local uv = vim.loop
+  local socket = uv.new_tcp()
+  local timer = uv.new_timer()
+  local finished = false
+
+  local function finish(running)
+    if finished then
+      return
+    end
+    finished = true
+    if timer then
+      timer:stop()
+      timer:close()
+    end
+    if socket then
+      socket:close()
+    end
+    vim.schedule(function()
+      callback(running)
+    end)
+  end
+
+  if socket then
+    socket:connect(M.OPENCODE_HOST, M.OPENCODE_PORT, function(err)
+      if err then
+        finish(false)
+        return
+      end
+      finish(true)
+    end)
+  else
+    print("Failed to create socket")
+  end
+
+  if timer then
+    timer:start(1000, 0, function()
+      finish(false)
+    end)
+  else
+    print("Failed to create timer")
+  end
+end
+
+-- Return consolidated status via callback(status_table)
+-- status_table: { server_running=bool, server_url=string, tunnel_url=string|nil, tunnel_pid=number|nil, tunnel_stale=bool, raw_state=table }
+function M.get_status(callback)
+  is_opencode_server_running(function(running)
+    local state = M.read_state() or {}
+    local tunnel = state.tunnel
+    local tunnel_url = nil
+    local tunnel_pid = nil
+    local stale = false
+    if tunnel and tunnel.pid then
+      tunnel_pid = tonumber(tunnel.pid)
+      if tunnel_pid then
+        local ok = pcall(function()
+          -- kill with 0 checks if process exists (POSIX)
+          -- use uv.os_kill if available, fallback to vim.loop.kill
+          if vim.loop and vim.loop.kill then
+            vim.loop.kill(tunnel_pid, 0)
+          else
+            vim.loop.kill(tunnel_pid, 0)
+          end
+        end)
+        if ok then
+          tunnel_url = tunnel.url
+        else
+          stale = true
+        end
+      end
+    end
+
+    local res = {
+      server_running = running,
+      server_url = M.get_server_url(),
+      tunnel_url = tunnel_url,
+      tunnel_pid = tunnel_pid,
+      tunnel_stale = stale,
+      raw_state = state,
+    }
+    callback(res)
+  end)
+end
+
+-- statusline helper removed per user request
 
 -- NOTE: Convert a Unix millisecond timestamp to a sortable ISO-like string
 -- and a formatted display pair (date, time).
@@ -201,50 +401,6 @@ function M.delete_all_opencode_sessions()
   end)
 end
 
-local function is_opencode_server_running(callback)
-  local uv = vim.loop
-  local socket = uv.new_tcp()
-  local timer = uv.new_timer()
-  local finished = false
-
-  local function finish(running)
-    if finished then
-      return
-    end
-    finished = true
-    if timer then
-      timer:stop()
-      timer:close()
-    end
-    if socket then
-      socket:close()
-    end
-    vim.schedule(function()
-      callback(running)
-    end)
-  end
-
-  if socket then
-    socket:connect(M.OPENCODE_HOST, M.OPENCODE_PORT, function(err)
-      if err then
-        finish(false)
-        return
-      end
-      finish(true)
-    end)
-  else
-    print("Failed to create socket")
-  end
-
-  if timer then
-    timer:start(1000, 0, function()
-      finish(false)
-    end)
-  else
-    print("Failed to create timer")
-  end
-end
-
 function M.start_opencode_server()
   if M._server_starting then
     return
@@ -320,7 +476,10 @@ M._tunnel_url = nil
 
 function M.start_tunnel()
   if not M.OPENCODE_SERVER_PASSWORD or M.OPENCODE_SERVER_PASSWORD == "" then
-    vim.notify("OPENCODE_SERVER_PASSWORD not set. Configure it in ~/.config/opencode/.server_credentials", vim.log.levels.ERROR)
+    vim.notify(
+      "OPENCODE_SERVER_PASSWORD not set. Configure it in ~/.config/opencode/.server_credentials",
+      vim.log.levels.ERROR
+    )
     return
   end
 
@@ -329,72 +488,220 @@ function M.start_tunnel()
       vim.notify("OpenCode server not running. Start it first with <leader>asr", vim.log.levels.WARN)
       return
     end
+    -- Helper that kills any existing untun and starts a new tunnel process
+    local function launch_new_tunnel()
+      vim.fn.jobstart({ "pkill", "-f", "untun" }, {
+        stdout = "/dev/null",
+        stderr = "/dev/null",
+        on_exit = function()
+          local uv = vim.loop
+          local stdin = uv.new_pipe(false)
+          local stdout = uv.new_pipe(false)
+          local stderr = uv.new_pipe(false)
 
-    local uv = vim.loop
-    local stdin = uv.new_pipe(false)
-    local stdout = uv.new_pipe(false)
-    local stderr = uv.new_pipe(false)
+          if not stdin or not stdout or not stderr then
+            vim.notify("Failed to create pipes for tunnel", vim.log.levels.ERROR)
+            return
+          end
 
-    if not stdin or not stdout or not stderr then
-      vim.notify("Failed to create pipes for tunnel", vim.log.levels.ERROR)
-      return
+          local function cleanup()
+            stdin:close()
+            stdout:close()
+            stderr:close()
+          end
+
+          local handle, pid = uv.spawn("npx", {
+            args = { "untun", "tunnel", "http://localhost:4096" },
+            stdio = { stdin, stdout, stderr },
+            detached = true,
+          }, function()
+            M._tunnel_pid = nil
+            M._tunnel_url = nil
+            cleanup()
+          end)
+
+          if not handle then
+            vim.notify("Failed to start untun", vim.log.levels.ERROR)
+            cleanup()
+            return
+          end
+
+          -- Auto-accept the cloudflared license/terms prompt
+          stdin:write("y\n", function() end)
+
+          vim.loop.unref(handle)
+          M._tunnel_pid = pid
+
+          local url_buffer = ""
+          local found_url = false
+
+          uv.read_start(stdout, function(err, data)
+            if err or not data then
+              return
+            end
+            url_buffer = url_buffer .. data
+
+            local url = url_buffer:match("https://[%w%-]+%.trycloudflare%.com")
+            if url and not found_url then
+              found_url = true
+              M._tunnel_url = url
+              -- schedule UI and IO work on main loop to avoid fast-event errors
+              vim.schedule(function()
+                vim.fn.setreg("+", url)
+                vim.notify("Tunnel active: " .. url .. " (copied to clipboard)", vim.log.levels.INFO)
+
+                -- Persist tunnel state so other instances can see it
+                local state = M.read_state() or {}
+                state.server = state.server or { host = M.OPENCODE_HOST, port = M.OPENCODE_PORT }
+                state.tunnel = {
+                  pid = pid,
+                  url = url,
+                  started_at = os.time() * 1000,
+                  owner = (os.getenv and os.getenv("USER") or "unknown") .. ":" .. tostring(pid),
+                }
+                M.write_state(state)
+              end)
+            end
+          end)
+
+          uv.read_start(stderr, function(err, data)
+            if err or not data then
+              return
+            end
+          end)
+
+          vim.notify("Starting tunnel... waiting for URL", vim.log.levels.INFO)
+        end,
+      })
     end
 
-    local function cleanup()
-      stdin:close()
-      stdout:close()
-      stderr:close()
-    end
-
-    local handle, pid = uv.spawn("npx", {
-      args = { "untun", "tunnel", "http://localhost:4096" },
-      stdio = { stdin, stdout, stderr },
-      detached = true,
-    }, function()
-      M._tunnel_pid = nil
-      M._tunnel_url = nil
-      cleanup()
-    end)
-
-    if not handle then
-      vim.notify("Failed to start untun", vim.log.levels.ERROR)
-      cleanup()
-      return
-    end
-
-    -- Auto-accept the cloudflared license/terms prompt
-    stdin:write("y\n", function() end)
-
-    vim.loop.unref(handle)
-    M._tunnel_pid = pid
-
-    local url_buffer = ""
-    local found_url = false
-
-    uv.read_start(stdout, function(err, data)
-      if err or not data then
-        return
-      end
-      url_buffer = url_buffer .. data
-
-      local url = url_buffer:match("https://[%w%-]+%.trycloudflare%.com")
-      if url and not found_url then
-        found_url = true
-        M._tunnel_url = url
-        vim.schedule(function()
-          vim.fn.setreg("+", url)
-          vim.notify("Tunnel active: " .. url .. " (copied to clipboard)", vim.log.levels.INFO)
+    -- Check persisted global state for an active tunnel (so this prompt works across instances)
+    local persisted = M.read_state() or {}
+    local existing = persisted.tunnel
+    local existing_alive = false
+    local existing_url = nil
+    if existing and existing.pid then
+      local epid = tonumber(existing.pid)
+      if epid then
+        local ok = pcall(function()
+          if vim.loop and vim.loop.kill then
+            vim.loop.kill(epid, 0)
+          elseif vim.loop and vim.loop.kill then
+            vim.loop.kill(epid, 0)
+          end
         end)
+        if ok then
+          existing_alive = true
+          existing_url = existing.url
+        end
       end
-    end)
+    end
 
-    uv.read_start(stderr, function(err, data)
-      if err or not data then
-        return
+    if existing_alive then
+      -- Show a one-line floating prompt with keybindings in the title.
+      local buf = vim.api.nvim_create_buf(false, true)
+      local width = math.min(80, vim.o.columns - 10)
+      local height = 1
+      local row = math.min(vim.o.lines, 2)
+      local col = math.floor((vim.o.columns - width) / 2)
+      local title = string.format("[y] New  [c] Copy  [s] Stop  [N] Cancel")
+      local win_opts = {
+        relative = "editor",
+        row = row,
+        col = col,
+        width = width,
+        height = height,
+        style = "minimal",
+        border = "single",
+        title = title,
+        title_pos = "center",
+      }
+      vim.api.nvim_buf_set_lines(buf, 0, -1, false, { string.format(" Active tunnel: %s", existing_url or "unknown") })
+      local win = vim.api.nvim_open_win(buf, true, win_opts)
+
+      -- helper to close and cleanup
+      local function close_prompt()
+        if vim.api.nvim_win_is_valid(win) then
+          pcall(vim.api.nvim_win_close, win, true)
+        end
+        if vim.api.nvim_buf_is_valid(buf) then
+          pcall(vim.api.nvim_buf_delete, buf, { force = true })
+        end
       end
-    end)
 
-    vim.notify("Starting tunnel... waiting for URL", vim.log.levels.INFO)
+      -- Action: start new tunnel
+      local function on_new()
+        close_prompt()
+        launch_new_tunnel()
+      end
+
+      -- Action: copy URL to clipboard
+      local function on_copy()
+        if existing_url then
+          vim.fn.setreg("+", existing_url)
+          vim.notify("Tunnel URL copied to clipboard", vim.log.levels.INFO)
+        else
+          vim.notify("No tunnel URL available", vim.log.levels.WARN)
+        end
+        close_prompt()
+      end
+
+      -- Action: stop global tunnel (pkill and clear state)
+      local function on_stop()
+        close_prompt()
+        vim.fn.jobstart({ "pkill", "-f", "untun" }, {
+          stdout = "/dev/null",
+          stderr = "/dev/null",
+          on_exit = function(_, exit_code)
+            vim.schedule(function()
+              if exit_code == 0 then
+                M.clear_tunnel_state()
+                vim.notify("Tunnel stopped", vim.log.levels.INFO)
+              else
+                vim.notify("No active tunnel found", vim.log.levels.WARN)
+              end
+            end)
+          end,
+        })
+      end
+
+      -- Map keys in buffer
+      local opts = { nowait = true, noremap = true, silent = true }
+      vim.api.nvim_buf_set_keymap(
+        buf,
+        "n",
+        "y",
+        string.format(":lua require('utils.opencode_utils')._prompt_action(%q)<CR>", "new"),
+        opts
+      )
+      vim.api.nvim_buf_set_keymap(
+        buf,
+        "n",
+        "c",
+        string.format(":lua require('utils.opencode_utils')._prompt_action(%q)<CR>", "copy"),
+        opts
+      )
+      vim.api.nvim_buf_set_keymap(
+        buf,
+        "n",
+        "s",
+        string.format(":lua require('utils.opencode_utils')._prompt_action(%q)<CR>", "stop"),
+        opts
+      )
+      local cancel_str = string.format(":lua require('utils.opencode_utils')._prompt_action(%q)<CR>", "cancel")
+      vim.api.nvim_buf_set_keymap(buf, "n", "N", cancel_str, opts)
+      vim.api.nvim_buf_set_keymap(buf, "n", "<CR>", cancel_str, opts)
+      vim.api.nvim_buf_set_keymap(buf, "n", "<Esc>", cancel_str, opts)
+
+      -- Register handlers accessible via module-level function
+      M._prompt_handlers = M._prompt_handlers or {}
+      M._prompt_handlers.new = on_new
+      M._prompt_handlers.copy = on_copy
+      M._prompt_handlers.stop = on_stop
+      M._prompt_handlers.cancel = close_prompt
+    else
+      launch_new_tunnel()
+    end
   end)
 end
 
@@ -406,6 +713,8 @@ function M.stop_tunnel()
       on_exit = function()
         M._tunnel_pid = nil
         M._tunnel_url = nil
+        -- clear persisted state when tunnel stops
+        M.clear_tunnel_state()
         vim.notify("Tunnel stopped", vim.log.levels.INFO)
       end,
     })
@@ -415,14 +724,35 @@ function M.stop_tunnel()
 end
 
 function M.get_tunnel_url()
-  return M._tunnel_url
+  if M._tunnel_url then
+    return M._tunnel_url
+  end
+  -- Fallback: read persisted state so other instances can see the URL
+  local s = M.read_state()
+  if not s or not s.tunnel then
+    return nil
+  end
+  local pid = tonumber(s.tunnel.pid)
+  if pid then
+    local ok = pcall(function()
+      if vim.loop and vim.loop.kill then
+        vim.loop.kill(pid, 0)
+      elseif vim.loop and vim.loop.kill then
+        vim.loop.kill(pid, 0)
+      end
+    end)
+    if ok then
+      return s.tunnel.url
+    end
+  end
+  return nil
 end
 
-function M.toggle_tunnel()
-  if M._tunnel_pid then
-    M.stop_tunnel()
-  else
-    M.start_tunnel()
+-- Entry point used by the floating prompt keymaps to dispatch actions.
+function M._prompt_action(action)
+  local h = M._prompt_handlers and M._prompt_handlers[action]
+  if h and type(h) == "function" then
+    h()
   end
 end
 
