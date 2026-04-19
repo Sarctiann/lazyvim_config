@@ -30,29 +30,106 @@ local M = {}
 --    },
 --  }
 
+OC_DEBUG = false
 M.OPENCODE_SERVER_USERNAME = "opencode"
 M.OPENCODE_SERVER_PASSWORD = "open-sarc-code"
 local OPENCODE_DB = vim.fn.expand("~/.local/share/opencode/opencode.db")
-local OPENCODE_MCP_CONFIG_FILE = vim.fn.expand("~/.config/opencode/opencode_nvim_mcps.jsonc")
--- Precompute paths and JSON helpers at module load time to avoid calling
--- vim.fn.expand or vim.fn.json_* inside fast event contexts.
-local STATE_FILE = vim.fn.expand("~/.local/share/opencode/state.json")
-M.OPENCODE_HOST = "127.0.0.1"
-M.OPENCODE_PORT = 4096
+-- NOTE: Resolve MCP config path relative to this file's directory using Neovim's debug.getinfo
+local OPENCODE_MCP_CONFIG_FILE = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":h")
+  .. "/opencode_nvim_mcps.jsonc"
 
-local json = nil
-if vim.json and vim.json.encode and vim.json.decode then
-  json = { encode = vim.json.encode, decode = vim.json.decode }
-else
-  -- Fallback to vim.fn functions (may error in fast event contexts on older Neovim)
-  json = {
-    encode = function(t)
-      return vim.fn.json_encode(t)
+-- NOTE: Runtime state for the current neovim instance.
+-- These are NOT persisted — they die with neovim.
+-- _port is written by get_cli_cmd's shell script into a tempfile and read back by Lua
+-- for toggle_tunnel and show_info.
+M._port = nil
+M._tunnel_handle = nil -- vim.loop.process handle (non-detached, dies with neovim)
+M._tunnel_pid = nil
+M._tunnel_url = nil
+M._refcount_registered = false -- tracks whether this instance already incremented the refcount
+
+-- NOTE: Path to the tempfile where the shell script writes the captured port.
+-- Namespaced by a hash of the working directory so each project gets its own server,
+-- but multiple neovim instances in the same directory share the same server.
+local function get_port_file()
+  local cwd = vim.fn.getcwd()
+  -- NOTE: Simple djb2 hash to avoid filesystem-unsafe characters from the path
+  local hash = 5381
+  for i = 1, #cwd do
+    hash = ((hash * 33) + string.byte(cwd, i)) % 0x100000000
+  end
+  return vim.fn.expand(string.format("~/.local/share/opencode/port.%x", hash))
+end
+
+-- NOTE: Atomically adjust the refcount file for the current PORT_FILE.
+-- Uses mkdir as an atomic lock (POSIX-portable, works on macOS without flock).
+-- Returns the new refcount value.
+local function adjust_refcount(delta)
+  local refcount_file = get_port_file() .. ".refcount"
+  local lock_dir = get_port_file() .. ".lock"
+  local dir = vim.fn.fnamemodify(refcount_file, ":h")
+  vim.fn.mkdir(dir, "p")
+
+  -- NOTE: mkdir is atomic on all POSIX systems — it fails if the dir already exists.
+  -- Spin with a short sleep until we acquire the lock.
+  local cmd = string.format(
+    [[
+      LOCK="%s"
+      RCFILE="%s"
+      DELTA=%d
+      tries=0
+      while ! mkdir "$LOCK" 2>/dev/null; do
+        tries=$((tries + 1))
+        [ "$tries" -gt 100 ] && echo "0" && exit 1
+        sleep 0.01
+      done
+      trap 'rmdir "$LOCK" 2>/dev/null' EXIT
+      count=0
+      [ -f "$RCFILE" ] && count=$(cat "$RCFILE" 2>/dev/null || echo 0)
+      count=$(( count + DELTA ))
+      [ "$count" -lt 0 ] && count=0
+      echo "$count" > "$RCFILE"
+      echo "$count"
+    ]],
+    lock_dir,
+    refcount_file,
+    delta
+  )
+  local result = vim.fn.system({ "bash", "-c", cmd })
+  return tonumber(result:match("%d+")) or 0
+end
+
+-- NOTE: Increment refcount and register a VimLeavePre autocmd to decrement on exit.
+-- Safe to call multiple times — only registers once per nvim instance.
+function M.register_refcount()
+  if M._refcount_registered then
+    return
+  end
+  M._refcount_registered = true
+  adjust_refcount(1)
+
+  vim.api.nvim_create_autocmd("VimLeavePre", {
+    callback = function()
+      local new_count = adjust_refcount(-1)
+      if new_count <= 0 then
+        local port_file = get_port_file()
+        -- NOTE: Kill the server process before cleaning up files.
+        -- Read the port and find the process listening on it.
+        local f = io.open(port_file, "r")
+        if f then
+          local port = f:read("*a"):gsub("%s+", "")
+          f:close()
+          if port ~= "" then
+            vim.fn.system(string.format("lsof -ti tcp:%s | xargs kill 2>/dev/null", port))
+          end
+        end
+        os.remove(port_file)
+        os.remove(port_file .. ".serve.log")
+        os.remove(port_file .. ".refcount")
+        vim.fn.delete(port_file .. ".lock", "d")
+      end
     end,
-    decode = function(s)
-      return vim.fn.json_decode(s)
-    end,
-  }
+  })
 end
 
 local function load_credentials()
@@ -74,207 +151,378 @@ end
 
 load_credentials()
 
+-- NOTE: Returns the local network IP (192.168.x.x) for display in show_info.
+-- Falls back to "127.0.0.1" if detection fails.
+local function get_local_ip()
+  local handle = io.popen("ipconfig getifaddr en0 2>/dev/null")
+  if handle then
+    local ip = handle:read("*a"):gsub("%s+", "")
+    handle:close()
+    if ip ~= "" then
+      return ip
+    end
+  end
+  return "127.0.0.1"
+end
+
+-- NOTE: Returns the server URL using the port read from the tempfile.
+-- Returns nil if the port has not been captured yet.
 function M.get_server_url()
-  return string.format("http://%s:%d", M.OPENCODE_HOST, M.OPENCODE_PORT)
-end
-
--- New canonical name: get_cli_cmd
--- Returns a CLI command string to interact with the OpenCode server.
-function M.get_cli_cmd()
-  return string.format(
-    "export OPENCODE_SERVER_USERNAME=%s OPENCODE_SERVER_PASSWORD=%s && sleep .2 && opencode attach %s",
-    M.OPENCODE_SERVER_USERNAME,
-    M.OPENCODE_SERVER_PASSWORD,
-    M.get_server_url()
-  )
-end
-
--- State file for sharing server/tunnel info between instances
-function M.state_file_path()
-  return STATE_FILE
-end
-
-function M.read_state()
-  local path = M.state_file_path()
-  local f = io.open(path, "r")
-  if not f then
-    return nil
+  if M._port then
+    return string.format("http://127.0.0.1:%d", M._port)
   end
-  local content = f:read("*a")
-  f:close()
-  if not content or content == "" then
-    return nil
-  end
-  local ok, tbl = pcall(json.decode, content)
-  if ok and type(tbl) == "table" then
-    return tbl
+  local f = io.open(get_port_file(), "r")
+  if f then
+    local p = f:read("*a"):gsub("%s+", "")
+    f:close()
+    local port = tonumber(p)
+    if port then
+      M._port = port
+      return string.format("http://127.0.0.1:%d", port)
+    end
   end
   return nil
 end
 
-function M.write_state(tbl)
-  local path = M.state_file_path()
-  local dir = vim.fn.fnamemodify(path, ":h")
-  vim.fn.mkdir(dir, "p")
-  -- Use libuv API to get pid (vim.loop.os_getpid) instead of deprecated getpid
-  local pid_for_tmp = (vim.loop and vim.loop.os_getpid and vim.loop.os_getpid() or 0)
-  local tmp = path .. ".tmp." .. tostring(pid_for_tmp)
-  local content = json.encode(tbl or {})
-  -- Try to acquire lock before writing
-  local acquired = M._acquire_state_lock()
-
-  local f, err = io.open(tmp, "w")
-  if not f then
-    vim.notify("Failed to open temp state file: " .. (err or "unknown"), vim.log.levels.ERROR)
-    if acquired then
-      M._release_state_lock()
+-- NOTE: Called by on_open hook in local_config.lua before cli-integration reads cli_cmd.
+-- If we already know the port (from a previous open), write it to the port file
+-- so the bash script can find it immediately and skip server startup.
+function M.on_open()
+  if M._port then
+    local port_file = get_port_file()
+    local dir = vim.fn.fnamemodify(port_file, ":h")
+    vim.fn.mkdir(dir, "p")
+    local f = io.open(port_file, "w")
+    if f then
+      f:write(tostring(M._port))
+      f:close()
     end
+  end
+  -- NOTE: Register refcount on first open so VimLeavePre cleanup is armed
+  M.register_refcount()
+end
+
+-- NOTE: Returns the full bash script used as cli_cmd for cli-integration.
+-- WARN: cli-integration concatenates extra args (e.g. " -s <session_id>") as raw text
+-- after cli_cmd. To ensure those args reach `opencode attach`, the script stores them
+-- in EXTRA_ARGS by capturing everything after a sentinel comment, then passes them
+-- to both the fast path and the normal path.
+-- The script:
+--   1. Checks if a port file exists and the server responds via /dev/tcp (fast path)
+--   2. If not, starts `opencode serve` in background and polls for the port (max 5s)
+--   3. Writes the captured port to a tempfile so Lua can read it (for toggle_tunnel / show_info)
+--   4. Runs `opencode attach` with the correct URL and any extra args
+function M.get_cli_cmd()
+  local username = M.OPENCODE_SERVER_USERNAME
+  local password = M.OPENCODE_SERVER_PASSWORD
+  local mcp_config = OPENCODE_MCP_CONFIG_FILE
+
+  -- NOTE: The script is wrapped in a function so cli-integration's appended args
+  -- become shell arguments to that function. This is the cleanest way to forward
+  -- extra args (like "-s <session_id>") to `opencode attach`.
+  return string.format(
+    [[oc__main() {
+    export OPENCODE_SERVER_USERNAME=%s
+    export OPENCODE_SERVER_PASSWORD=%s
+    PORT_FILE="%s"
+
+    # NOTE: Set OC_DEBUG=1 to enable debug logging to /tmp/opencode-debug-<pid>.log.
+    # Useful for diagnosing server startup, port detection, and health-check issues.
+    OC_DEBUG=%d
+    OC_DEBUG_LOG="/tmp/opencode-debug-$$.log"
+
+    # NOTE: Conditional logger — writes timestamped entries only when OC_DEBUG=1.
+    # Uses "|| true" to ensure the function never returns a non-zero exit code,
+    # which would affect the script's final exit status.
+    _oc_log() { [ "$OC_DEBUG" = "1" ] && echo "[$(date '+%%H:%%M:%%S')] $*" >> "$OC_DEBUG_LOG" || true; }
+
+    _oc_log "=== oc__main started ==="
+    _oc_log "PORT_FILE=$PORT_FILE"
+    _oc_log "SHELL=$SHELL (pid=$$)"
+    _oc_log "args=$*"
+
+    # NOTE: Portable TCP health-check — tries nc -z first (works on macOS BSD nc and most
+    # Linux distros), falls back to bash /dev/tcp (bash-only builtin), then to python3 socket
+    # as a last resort. This covers macOS, Debian/Ubuntu, Arch, Alpine, and minimal containers.
+    _oc_port_alive() {
+      local port="$1"
+      local rc
+      nc -z 127.0.0.1 "$port" 2>/dev/null; rc=$?; _oc_log "  nc -z exit=$rc"
+      [ "$rc" -eq 0 ] && return 0
+      bash -c "(echo >/dev/tcp/127.0.0.1/$port)" 2>/dev/null; rc=$?; _oc_log "  bash /dev/tcp exit=$rc"
+      [ "$rc" -eq 0 ] && return 0
+      python3 -c "import socket; s=socket.socket(); s.settimeout(1); s.connect(('127.0.0.1',$port)); s.close()" 2>/dev/null; rc=$?; _oc_log "  python3 exit=$rc"
+      [ "$rc" -eq 0 ] && return 0
+      return 1
+    }
+
+    # NOTE: Fast path — if port file exists and server responds, skip server startup
+    # and attach immediately. This is the common case after the first open.
+    if [ -f "$PORT_FILE" ]; then
+      EXISTING_PORT=$(cat "$PORT_FILE" 2>/dev/null)
+      _oc_log "PORT_FILE exists, EXISTING_PORT=$EXISTING_PORT"
+      if [ -n "$EXISTING_PORT" ] && _oc_port_alive "$EXISTING_PORT"; then
+        _oc_log "FAST PATH: server alive on port $EXISTING_PORT, attaching"
+
+        echo "\nThe Server already exist. Attaching OpenCode CLI...\n"
+     
+        exec opencode attach "http://127.0.0.1:$EXISTING_PORT" "$@"
+      else
+        _oc_log "SLOW PATH: port check failed (port=$EXISTING_PORT)"
+      fi
+    else
+      _oc_log "SLOW PATH: PORT_FILE does not exist"
+    fi
+
+    # NOTE: Slow path — start a new server in the background.
+    # The logfile is per-project (derived from PORT_FILE) so it persists across terminal reopens.
+    LOGFILE="${PORT_FILE}.serve.log"
+    _oc_log "Starting server, LOGFILE=$LOGFILE"
+
+    echo "\nStarting OpenCode server. Please wait...\n"
+
+    # NOTE: nohup + stdin from /dev/null + stdout/stderr to logfile ensures the server
+    # survives terminal close in both bash and zsh. setsid (Linux) or lack thereof (macOS)
+    # is not needed because nohup already ignores SIGHUP.
+    nohup env OPENCODE_CONFIG=%s opencode serve --port 0 --hostname 0.0.0.0 --mdns --print-logs </dev/null >"$LOGFILE" 2>&1 &
+    SERVER_PID=$!
+    disown $SERVER_PID 2>/dev/null
+    _oc_log "Server PID=$SERVER_PID (nohup + disown)"
+
+    # NOTE: Poll the server log for up to 5s waiting for the "listening on" line
+    # that contains the dynamically assigned port number.
+    PORT=""
+    for i in $(seq 1 50); do
+      sleep 0.1
+      PORT=$(grep -o 'listening on http[s]*://[^:]*:\([0-9]*\)' "$LOGFILE" 2>/dev/null | grep -o '[0-9]*$' | head -1)
+      [ -n "$PORT" ] && break
+    done
+
+    if [ -z "$PORT" ]; then
+      _oc_log "ERROR: could not detect port after 5s"
+
+      echo "\nERROR: Could not detect opencode server port after 5s\n" >&2
+    
+    exit 1
+    fi
+    mkdir -p $(dirname "$PORT_FILE")
+    echo "$PORT" > "$PORT_FILE"
+    _oc_log "Server started on port $PORT, PORT_FILE written"
+
+    echo "\nStarting OpenCode CLI...\n"
+
+    opencode attach "http://127.0.0.1:$PORT" "$@"
+    _oc_log "opencode attach exited with code $?"
+  }
+  oc__main]],
+    username,
+    password,
+    get_port_file(),
+    OC_DEBUG and 1 or 0,
+    mcp_config
+  )
+end
+
+-- NOTE: Toggles the cloudflare tunnel via npx untun.
+-- If a tunnel is already active, kills it. Otherwise starts a new one.
+-- Reads the port from the tempfile written by the cli_cmd shell script.
+function M.toggle_tunnel()
+  -- NOTE: Kill existing tunnel if active.
+  -- WARN: SIGTERM to the npx handle alone does NOT propagate to the cloudflared child process.
+  -- We must pkill -f untun to kill the entire process tree, same approach used in main branch.
+  if M._tunnel_handle then
+    vim.fn.jobstart({ "pkill", "-f", "untun" }, {
+      on_exit = function()
+        vim.schedule(function()
+          M._tunnel_handle = nil
+          M._tunnel_pid = nil
+          M._tunnel_url = nil
+          vim.notify("Tunnel stopped", vim.log.levels.INFO)
+        end)
+      end,
+    })
     return
   end
-  f:write(content)
-  f:close()
-  -- atomic replace
-  os.rename(tmp, path)
-  -- Release lock if we acquired it
-  if acquired then
-    M._release_state_lock()
-  end
-end
 
--- Simple file lock implementation (best-effort)
-function M._acquire_state_lock()
-  local lock = STATE_FILE .. ".lock"
-  if vim.loop and vim.loop.fs_open then
-    local fd = vim.loop.fs_open(lock, "wx", 438)
-    if fd then
-      local pid = (vim.loop and vim.loop.os_getpid and vim.loop.os_getpid()) or 0
-      pcall(function()
-        vim.loop.fs_write(fd, tostring(pid), -1)
-      end)
-      vim.loop.fs_close(fd)
-      -- mark owned
-      M._state_lock_path = lock
-      return true
-    end
-    return false
-  else
-    -- fallback: create file if not exists
-    local f = io.open(lock, "r")
-    if f then
-      f:close()
-      return false
-    end
-    local w = io.open(lock, "w")
-    if w then
-      w:write(tostring(os.time()))
-      w:close()
-      M._state_lock_path = lock
-      return true
-    end
-    return false
+  local server_url = M.get_server_url()
+  if not server_url then
+    vim.notify("OpenCode server not running. Open OpenCode first with <leader>aa", vim.log.levels.WARN)
+    return
   end
-end
 
-function M._release_state_lock()
-  local lock = M._state_lock_path or (STATE_FILE .. ".lock")
-  pcall(function()
-    os.remove(lock)
+  local tunnel_target_url = string.format("http://localhost:%d", M._port)
+
+  local stdin_pipe = vim.loop.new_pipe(false)
+  local stdout_pipe = vim.loop.new_pipe(false)
+  local stderr_pipe = vim.loop.new_pipe(false)
+
+  if not stdin_pipe or not stdout_pipe or not stderr_pipe then
+    vim.notify("Failed to create pipes for tunnel", vim.log.levels.ERROR)
+    return
+  end
+
+  local handle, pid
+  handle, pid = vim.loop.spawn("npx", {
+    args = { "untun", "tunnel", tunnel_target_url },
+    -- NOTE: NOT detached — tunnel dies when neovim exits
+    stdio = { stdin_pipe, stdout_pipe, stderr_pipe },
+  }, function()
+    vim.schedule(function()
+      M._tunnel_handle = nil
+      M._tunnel_pid = nil
+      M._tunnel_url = nil
+    end)
+    if handle then
+      handle:close()
+    end
+    stdin_pipe:close()
+    stdout_pipe:close()
+    stderr_pipe:close()
   end)
-  M._state_lock_path = nil
-end
 
-function M.clear_tunnel_state()
-  local s = M.read_state() or {}
-  s.tunnel = nil
-  M.write_state(s)
-end
+  if not handle then
+    vim.notify("Failed to start tunnel", vim.log.levels.ERROR)
+    stdin_pipe:close()
+    stdout_pipe:close()
+    stderr_pipe:close()
+    return
+  end
 
-local function is_opencode_server_running(callback)
-  local uv = vim.loop
-  local socket = uv.new_tcp()
-  local timer = uv.new_timer()
-  local finished = false
+  M._tunnel_handle = handle
+  M._tunnel_pid = pid
 
-  local function finish(running)
-    if finished then
+  -- NOTE: Accept cloudflared/untun license terms automatically
+  stdin_pipe:write("y\n", function() end)
+
+  vim.notify("Starting tunnel...", vim.log.levels.INFO)
+
+  local url_buffer = ""
+
+  local function try_capture_url(data)
+    if not data or M._tunnel_url then
       return
     end
-    finished = true
-    if timer then
-      timer:stop()
-      timer:close()
+    url_buffer = url_buffer .. data
+    local url = url_buffer:match("https://[%w%-]+%.trycloudflare%.com")
+    if url then
+      vim.schedule(function()
+        M._tunnel_url = url
+        vim.fn.setreg("+", url)
+        vim.notify("Tunnel active: " .. url .. " (copied to clipboard)", vim.log.levels.INFO)
+      end)
     end
-    if socket then
-      socket:close()
-    end
-    vim.schedule(function()
-      callback(running)
-    end)
   end
 
-  if socket then
-    socket:connect(M.OPENCODE_HOST, M.OPENCODE_PORT, function(err)
-      if err then
-        finish(false)
-        return
-      end
-      finish(true)
-    end)
-  else
-    print("Failed to create socket")
-  end
-
-  if timer then
-    timer:start(1000, 0, function()
-      finish(false)
-    end)
-  else
-    print("Failed to create timer")
-  end
-end
-
--- Return consolidated status via callback(status_table)
--- status_table: { server_running=bool, server_url=string, tunnel_url=string|nil, tunnel_pid=number|nil, tunnel_stale=bool, raw_state=table }
-function M.get_status(callback)
-  is_opencode_server_running(function(running)
-    local state = M.read_state() or {}
-    local tunnel = state.tunnel
-    local tunnel_url = nil
-    local tunnel_pid = nil
-    local stale = false
-    if tunnel and tunnel.pid then
-      tunnel_pid = tonumber(tunnel.pid)
-      if tunnel_pid then
-        local ok = pcall(function()
-          -- kill with 0 checks if process exists (POSIX)
-          -- use uv.os_kill if available, fallback to vim.loop.kill
-          if vim.loop and vim.loop.kill then
-            vim.loop.kill(tunnel_pid, 0)
-          else
-            vim.loop.kill(tunnel_pid, 0)
-          end
-        end)
-        if ok then
-          tunnel_url = tunnel.url
-        else
-          stale = true
-        end
-      end
+  -- NOTE: untun may output the URL to stdout or stderr depending on version
+  vim.loop.read_start(stdout_pipe, function(err, data)
+    if not err then
+      try_capture_url(data)
     end
+  end)
 
-    local res = {
-      server_running = running,
-      server_url = M.get_server_url(),
-      tunnel_url = tunnel_url,
-      tunnel_pid = tunnel_pid,
-      tunnel_stale = stale,
-      raw_state = state,
-    }
-    callback(res)
+  vim.loop.read_start(stderr_pipe, function(err, data)
+    if not err then
+      try_capture_url(data)
+    end
   end)
 end
 
--- statusline helper removed per user request
+-- NOTE: Shows a floating window in the top-right corner with the server local URL and tunnel status.
+-- Keymaps shown in the title: u copies the local URL, t copies the tunnel URL.
+-- <CR> and <Esc> close the window.
+function M.show_info()
+  local server_url = M.get_server_url()
+  if not server_url then
+    vim.notify("OpenCode server not running", vim.log.levels.WARN)
+    return
+  end
+
+  local local_ip = get_local_ip()
+  local local_url = string.format("http://%s:%d", local_ip, M._port)
+  local tunnel_status = M._tunnel_url or "Closed"
+
+  local lines = {
+    " Local:  " .. local_url,
+    " Tunnel: " .. tunnel_status,
+  }
+
+  local width = 0
+  for _, line in ipairs(lines) do
+    if #line > width then
+      width = #line
+    end
+  end
+  width = width + 2
+
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+  vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
+  vim.api.nvim_set_option_value("bufhidden", "wipe", { buf = buf })
+
+  local win = vim.api.nvim_open_win(buf, true, {
+    relative = "editor",
+    row = 1,
+    col = vim.o.columns - width - 2,
+    width = math.max(width, 48),
+    height = #lines,
+    style = "minimal",
+    border = "rounded",
+    -- NOTE: Using Nerd Font CircleInfo glyph directly as requested
+    title = "    u: Copy local URL │ t: Copy tunnel URL ",
+    title_pos = "center",
+  })
+
+  local opts = { nowait = true, noremap = true, silent = true, buffer = buf }
+
+  vim.keymap.set("n", "u", function()
+    vim.fn.setreg("+", local_url)
+    vim.notify("Local URL copied: " .. local_url, vim.log.levels.INFO)
+    if vim.api.nvim_win_is_valid(win) then
+      vim.api.nvim_win_close(win, true)
+    end
+  end, opts)
+
+  vim.keymap.set("n", "t", function()
+    if M._tunnel_url then
+      vim.fn.setreg("+", M._tunnel_url)
+      vim.notify("Tunnel URL copied: " .. M._tunnel_url, vim.log.levels.INFO)
+    else
+      vim.notify("No tunnel active", vim.log.levels.WARN)
+    end
+    if vim.api.nvim_win_is_valid(win) then
+      vim.api.nvim_win_close(win, true)
+    end
+  end, opts)
+
+  local timer = nil
+  local function close()
+    if timer then
+      pcall(function()
+        timer:stop()
+        timer:close()
+      end)
+      timer = nil
+    end
+    if vim.api.nvim_win_is_valid(win) then
+      pcall(vim.api.nvim_win_close, win, true)
+    end
+  end
+
+  vim.keymap.set("n", "<CR>", close, opts)
+  vim.keymap.set("n", "<Esc>", close, opts)
+
+  -- Auto-close after 5 seconds to avoid lingering UI
+  timer = vim.loop.new_timer()
+  if timer then
+    timer:start(
+      5000,
+      0,
+      vim.schedule_wrap(function()
+        close()
+      end)
+    )
+  end
+end
 
 -- NOTE: Convert a Unix millisecond timestamp to a sortable ISO-like string
 -- and a formatted display pair (date, time).
@@ -284,7 +532,6 @@ local function parse_timestamp(ts_ms)
     return "0000-00-00T00:00:00", "Unknown", ""
   end
   local epoch = n / 1000
-  -- iso string used for sorting (comparable with string comparison)
   local iso = os.date("!%Y-%m-%dT%H:%M:%S", epoch)
   local date = os.date("!%Y-%m-%d", epoch)
   local time = os.date("!%H:%M", epoch)
@@ -292,7 +539,6 @@ local function parse_timestamp(ts_ms)
 end
 
 -- NOTE: Query all sessions from the SQLite database.
--- Returns a list of Cli-Integration.Session objects.
 local function get_sessions()
   local sessions = {}
   local cmd = string.format(
@@ -305,13 +551,8 @@ local function get_sessions()
   end
 
   for line in vim.gsplit(result, "\n", { trimempty = true }) do
-    -- Use a safe split on | that handles pipes in titles by anchoring on the
-    -- known-format trailing fields: directory (starts with /) and numeric timestamp.
-    -- Pattern: capture everything up to the last two | fields.
     local id, rest = line:match("^(ses_[^|]+)|(.+)$")
     if id and rest then
-      -- Split the rest from the right: last field is the numeric timestamp,
-      -- second-to-last is the directory (starts with /), the remainder is title.
       local ts = rest:match("|(%d+)$")
       local without_ts = rest:match("^(.+)|%d+$")
       local directory = without_ts and without_ts:match("|(/[^|]+)$")
@@ -411,371 +652,6 @@ function M.delete_all_opencode_sessions()
       end
     end)
   end)
-end
-
-function M.start_opencode_server()
-  if M._server_starting then
-    return
-  end
-
-  if vim.fn.executable("opencode") ~= 1 then
-    vim.notify("OpenCode binary not found in PATH", vim.log.levels.WARN)
-    return
-  end
-
-  is_opencode_server_running(function(running)
-    if running then
-      return
-    end
-
-    M._server_starting = true
-
-    -- Build the environment by extending the current one
-    local env = {}
-    for k, v in pairs(vim.fn.environ()) do
-      table.insert(env, string.format("%s=%s", k, v))
-    end
-    table.insert(env, "OPENCODE_CONFIG=" .. OPENCODE_MCP_CONFIG_FILE)
-    table.insert(env, "OPENCODE_SERVER_USERNAME=" .. M.OPENCODE_SERVER_USERNAME)
-    table.insert(env, "OPENCODE_SERVER_PASSWORD=" .. M.OPENCODE_SERVER_PASSWORD)
-
-    local uv = vim.loop
-    local handle, pid
-    handle, pid = uv.spawn("opencode", {
-      args = { "serve", "--hostname", "0.0.0.0", "--port", tostring(M.OPENCODE_PORT), "--mdns" },
-      env = env,
-      stdio = { nil, nil, nil }, -- Completely detached stdio
-      detached = true,
-    }, function()
-      M._server_starting = false
-      if handle then
-        handle:close()
-      end
-    end)
-
-    if handle then
-      uv.unref(handle) -- Key: Don't keep the event loop alive for this process
-      M._server_starting = false -- PID spawned successfully
-      vim.notify("OpenCode server started independently (PID: " .. pid .. ")", vim.log.levels.INFO)
-    else
-      M._server_starting = false
-      vim.notify("Failed to spawn OpenCode server", vim.log.levels.ERROR)
-    end
-  end)
-end
-
-function M.restart_opencode_server()
-  vim.fn.jobstart({ "pkill", "-f", "opencode serve" }, {
-    stdout = "/dev/null",
-    stderr = "/dev/null",
-    on_exit = function()
-      vim.defer_fn(function()
-        M.start_opencode_server()
-        vim.notify("OpenCode server restart command sent", vim.log.levels.INFO)
-      end, 500)
-    end,
-  })
-end
-
-function M.kill_opencode_server()
-  vim.fn.jobstart({ "pkill", "-f", "opencode serve" }, {
-    stdout = "/dev/null",
-    stderr = "/dev/null",
-    on_exit = function(_, exit_code)
-      vim.defer_fn(function()
-        if exit_code == 0 then
-          vim.notify("OpenCode server stopped", vim.log.levels.INFO)
-        else
-          vim.notify("No OpenCode server was running", vim.log.levels.WARN)
-        end
-      end, 100)
-    end,
-  })
-end
-
-M._tunnel_pid = nil
-M._tunnel_url = nil
-
-function M.start_tunnel()
-  if not M.OPENCODE_SERVER_PASSWORD or M.OPENCODE_SERVER_PASSWORD == "" then
-    vim.notify(
-      "OPENCODE_SERVER_PASSWORD not set. Configure it in ~/.config/opencode/.server_credentials",
-      vim.log.levels.ERROR
-    )
-    return
-  end
-
-  is_opencode_server_running(function(running)
-    if not running then
-      vim.notify("OpenCode server not running. Start it first with <leader>asr", vim.log.levels.WARN)
-      return
-    end
-    -- Helper that kills any existing untun and starts a new tunnel process
-    local function launch_new_tunnel()
-      vim.fn.jobstart({ "pkill", "-f", "untun" }, {
-        stdout = "/dev/null",
-        stderr = "/dev/null",
-        on_exit = function()
-          local uv = vim.loop
-          local stdin = uv.new_pipe(false)
-          local stdout = uv.new_pipe(false)
-          local stderr = uv.new_pipe(false)
-
-          if not stdin or not stdout or not stderr then
-            vim.notify("Failed to create pipes for tunnel", vim.log.levels.ERROR)
-            return
-          end
-
-          local function cleanup()
-            stdin:close()
-            stdout:close()
-            stderr:close()
-          end
-
-          local handle, pid = uv.spawn("npx", {
-            args = { "untun", "tunnel", "http://localhost:4096" },
-            stdio = { stdin, stdout, stderr },
-            detached = true,
-          }, function()
-            M._tunnel_pid = nil
-            M._tunnel_url = nil
-            cleanup()
-          end)
-
-          if not handle then
-            vim.notify("Failed to start untun", vim.log.levels.ERROR)
-            cleanup()
-            return
-          end
-
-          -- Auto-accept the cloudflared license/terms prompt
-          stdin:write("y\n", function() end)
-
-          vim.loop.unref(handle)
-          M._tunnel_pid = pid
-
-          local url_buffer = ""
-          local found_url = false
-
-          uv.read_start(stdout, function(err, data)
-            if err or not data then
-              return
-            end
-            url_buffer = url_buffer .. data
-
-            local url = url_buffer:match("https://[%w%-]+%.trycloudflare%.com")
-            if url and not found_url then
-              found_url = true
-              M._tunnel_url = url
-              -- schedule UI and IO work on main loop to avoid fast-event errors
-              vim.schedule(function()
-                vim.fn.setreg("+", url)
-                vim.notify("Tunnel active: " .. url .. " (copied to clipboard)", vim.log.levels.INFO)
-
-                -- Persist tunnel state so other instances can see it
-                local state = M.read_state() or {}
-                state.server = state.server or { host = M.OPENCODE_HOST, port = M.OPENCODE_PORT }
-                state.tunnel = {
-                  pid = pid,
-                  url = url,
-                  started_at = os.time() * 1000,
-                  owner = (os.getenv and os.getenv("USER") or "unknown") .. ":" .. tostring(pid),
-                }
-                M.write_state(state)
-              end)
-            end
-          end)
-
-          uv.read_start(stderr, function(err, data)
-            if err or not data then
-              return
-            end
-          end)
-
-          vim.notify("Starting tunnel... waiting for URL", vim.log.levels.INFO)
-        end,
-      })
-    end
-
-    -- Check persisted global state for an active tunnel (so this prompt works across instances)
-    local persisted = M.read_state() or {}
-    local existing = persisted.tunnel
-    local existing_alive = false
-    local existing_url = nil
-    if existing and existing.pid then
-      local epid = tonumber(existing.pid)
-      if epid then
-        local ok = pcall(function()
-          if vim.loop and vim.loop.kill then
-            vim.loop.kill(epid, 0)
-          elseif vim.loop and vim.loop.kill then
-            vim.loop.kill(epid, 0)
-          end
-        end)
-        if ok then
-          existing_alive = true
-          existing_url = existing.url
-        end
-      end
-    end
-
-    if existing_alive then
-      -- Show a one-line floating prompt with keybindings in the title.
-      local buf = vim.api.nvim_create_buf(false, true)
-      local width = math.min(80, vim.o.columns - 10)
-      local height = 1
-      local row = math.min(vim.o.lines, 2)
-      local col = math.floor((vim.o.columns - width) / 2)
-      local title = string.format("[y] New  [c] Copy  [s] Stop  [N] Cancel")
-      local win_opts = {
-        relative = "editor",
-        row = row,
-        col = col,
-        width = width,
-        height = height,
-        style = "minimal",
-        border = "single",
-        title = title,
-        title_pos = "center",
-      }
-      vim.api.nvim_buf_set_lines(buf, 0, -1, false, { string.format(" Active tunnel: %s", existing_url or "unknown") })
-      local win = vim.api.nvim_open_win(buf, true, win_opts)
-
-      -- helper to close and cleanup
-      local function close_prompt()
-        if vim.api.nvim_win_is_valid(win) then
-          pcall(vim.api.nvim_win_close, win, true)
-        end
-        if vim.api.nvim_buf_is_valid(buf) then
-          pcall(vim.api.nvim_buf_delete, buf, { force = true })
-        end
-      end
-
-      -- Action: start new tunnel
-      local function on_new()
-        close_prompt()
-        launch_new_tunnel()
-      end
-
-      -- Action: copy URL to clipboard
-      local function on_copy()
-        if existing_url then
-          vim.fn.setreg("+", existing_url)
-          vim.notify("Tunnel URL copied to clipboard", vim.log.levels.INFO)
-        else
-          vim.notify("No tunnel URL available", vim.log.levels.WARN)
-        end
-        close_prompt()
-      end
-
-      -- Action: stop global tunnel (pkill and clear state)
-      local function on_stop()
-        close_prompt()
-        vim.fn.jobstart({ "pkill", "-f", "untun" }, {
-          stdout = "/dev/null",
-          stderr = "/dev/null",
-          on_exit = function(_, exit_code)
-            vim.schedule(function()
-              if exit_code == 0 then
-                M.clear_tunnel_state()
-                vim.notify("Tunnel stopped", vim.log.levels.INFO)
-              else
-                vim.notify("No active tunnel found", vim.log.levels.WARN)
-              end
-            end)
-          end,
-        })
-      end
-
-      -- Map keys in buffer
-      local opts = { nowait = true, noremap = true, silent = true }
-      vim.api.nvim_buf_set_keymap(
-        buf,
-        "n",
-        "y",
-        string.format(":lua require('utils.opencode_utils')._prompt_action(%q)<CR>", "new"),
-        opts
-      )
-      vim.api.nvim_buf_set_keymap(
-        buf,
-        "n",
-        "c",
-        string.format(":lua require('utils.opencode_utils')._prompt_action(%q)<CR>", "copy"),
-        opts
-      )
-      vim.api.nvim_buf_set_keymap(
-        buf,
-        "n",
-        "s",
-        string.format(":lua require('utils.opencode_utils')._prompt_action(%q)<CR>", "stop"),
-        opts
-      )
-      local cancel_str = string.format(":lua require('utils.opencode_utils')._prompt_action(%q)<CR>", "cancel")
-      vim.api.nvim_buf_set_keymap(buf, "n", "N", cancel_str, opts)
-      vim.api.nvim_buf_set_keymap(buf, "n", "<CR>", cancel_str, opts)
-      vim.api.nvim_buf_set_keymap(buf, "n", "<Esc>", cancel_str, opts)
-
-      -- Register handlers accessible via module-level function
-      M._prompt_handlers = M._prompt_handlers or {}
-      M._prompt_handlers.new = on_new
-      M._prompt_handlers.copy = on_copy
-      M._prompt_handlers.stop = on_stop
-      M._prompt_handlers.cancel = close_prompt
-    else
-      launch_new_tunnel()
-    end
-  end)
-end
-
-function M.stop_tunnel()
-  if M._tunnel_pid then
-    vim.fn.jobstart({ "pkill", "-f", "untun" }, {
-      stdout = "/dev/null",
-      stderr = "/dev/null",
-      on_exit = function()
-        M._tunnel_pid = nil
-        M._tunnel_url = nil
-        -- clear persisted state when tunnel stops
-        M.clear_tunnel_state()
-        vim.notify("Tunnel stopped", vim.log.levels.INFO)
-      end,
-    })
-  else
-    vim.notify("No active tunnel", vim.log.levels.WARN)
-  end
-end
-
-function M.get_tunnel_url()
-  if M._tunnel_url then
-    return M._tunnel_url
-  end
-  -- Fallback: read persisted state so other instances can see the URL
-  local s = M.read_state()
-  if not s or not s.tunnel then
-    return nil
-  end
-  local pid = tonumber(s.tunnel.pid)
-  if pid then
-    local ok = pcall(function()
-      if vim.loop and vim.loop.kill then
-        vim.loop.kill(pid, 0)
-      elseif vim.loop and vim.loop.kill then
-        vim.loop.kill(pid, 0)
-      end
-    end)
-    if ok then
-      return s.tunnel.url
-    end
-  end
-  return nil
-end
-
--- Entry point used by the floating prompt keymaps to dispatch actions.
-function M._prompt_action(action)
-  local h = M._prompt_handlers and M._prompt_handlers[action]
-  if h and type(h) == "function" then
-    h()
-  end
 end
 
 return M
