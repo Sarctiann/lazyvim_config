@@ -10,3 +10,4 @@ lazy-lock.json
 .DS_Store
 playground.lua
 local_config.lua
+docs/superpowers
