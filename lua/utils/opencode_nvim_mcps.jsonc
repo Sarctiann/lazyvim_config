@@ -1,0 +1,28 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  // MCP servers configuration
+  "mcp": {
+    // Neovim MCP server for buffer access and editing (bigcodegen)
+    "nvim-complete": {
+      "type": "local",
+      "command": ["npx", "-y", "mcp-neovim-server"],
+      "enabled": true,
+      "environment": {
+        // Enable shell commands execution through vim
+        "ALLOW_SHELL_COMMANDS": "true",
+        // Socket path for neovim connection (uses NVIM env var)
+        "NVIM_SOCKET_PATH": "{env:NVIM}",
+      },
+    },
+    // Alternative Neovim MCP server (nvim-mcp)
+    "nvim-fast": {
+      "type": "local",
+      "command": ["nvim-mcp", "--connect", "auto"],
+      "enabled": true,
+      "environment": {
+        // Socket path for neovim connection (uses NVIM env var)
+        "NVIM": "{env:NVIM}",
+      },
+    },
+  },
+}

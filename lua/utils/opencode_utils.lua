@@ -37,6 +37,8 @@ local OPENCODE_MCP_CONFIG_FILE = vim.fn.expand("~/.config/opencode/opencode_nvim
 -- Precompute paths and JSON helpers at module load time to avoid calling
 -- vim.fn.expand or vim.fn.json_* inside fast event contexts.
 local STATE_FILE = vim.fn.expand("~/.local/share/opencode/state.json")
+M.OPENCODE_HOST = "127.0.0.1"
+M.OPENCODE_PORT = 4096
 
 local json = nil
 if vim.json and vim.json.encode and vim.json.decode then
@@ -71,8 +73,6 @@ local function load_credentials()
 end
 
 load_credentials()
-M.OPENCODE_HOST = "127.0.0.1"
-M.OPENCODE_PORT = 4096
 
 function M.get_server_url()
   return string.format("http://%s:%d", M.OPENCODE_HOST, M.OPENCODE_PORT)
@@ -81,7 +81,12 @@ end
 -- New canonical name: get_cli_cmd
 -- Returns a CLI command string to interact with the OpenCode server.
 function M.get_cli_cmd()
-  return string.format("opencode attach --host %s --port %d", M.OPENCODE_HOST, M.OPENCODE_PORT)
+  return string.format(
+    "export OPENCODE_SERVER_USERNAME=%s OPENCODE_SERVER_PASSWORD=%s && sleep .2 && opencode attach %s",
+    M.OPENCODE_SERVER_USERNAME,
+    M.OPENCODE_SERVER_PASSWORD,
+    M.get_server_url()
+  )
 end
 
 -- State file for sharing server/tunnel info between instances
