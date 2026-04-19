@@ -1,0 +1,3 @@
+# This file reverses the effect of .gitignore for the specified files,
+# allowing them to be referenced by AI tools.
+!local_config.lua

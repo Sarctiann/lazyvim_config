@@ -78,6 +78,12 @@ function M.get_server_url()
   return string.format("http://%s:%d", M.OPENCODE_HOST, M.OPENCODE_PORT)
 end
 
+-- New canonical name: get_cli_cmd
+-- Returns a CLI command string to interact with the OpenCode server.
+function M.get_cli_cmd()
+  return string.format("opencode attach --host %s --port %d", M.OPENCODE_HOST, M.OPENCODE_PORT)
+end
+
 -- State file for sharing server/tunnel info between instances
 function M.state_file_path()
   return STATE_FILE
