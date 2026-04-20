@@ -121,6 +121,9 @@ function M.register_refcount()
           f:close()
           if port ~= "" then
             vim.fn.system(string.format("lsof -ti tcp:%s | xargs kill 2>/dev/null", port))
+            if M._tunnel_pid then
+              vim.fn.system(string.format("kill %s 2>/dev/null || true", M._tunnel_pid))
+            end
           end
         end
         os.remove(port_file)
@@ -651,6 +654,166 @@ function M.delete_all_opencode_sessions()
         vim.notify("Deletion cancelled", vim.log.levels.INFO)
       end
     end)
+  end)
+end
+
+-- NOTE: Helper — returns the cwd of a process (macOS + Linux).
+-- Uses lsof on macOS, /proc on Linux. Returns "" on failure.
+-- `is_darwin` must be passed by the caller to avoid repeated uname calls.
+local function get_proc_cwd(pid, is_darwin)
+  if is_darwin then
+    local lines = vim.fn.systemlist(string.format("lsof -a -d cwd -p %s -F n 2>/dev/null", pid))
+    for _, l in ipairs(lines) do
+      local path = l:match("^n(.+)$")
+      if path then
+        return path
+      end
+    end
+  else
+    local link = vim.fn.resolve(string.format("/proc/%s/cwd", pid))
+    if link ~= "" then
+      return link
+    end
+  end
+  return ""
+end
+
+-- NOTE: Interactive inspector for ALL opencode-related processes on the machine.
+-- Lists: opencode serve (server), opencode attach (client), and npx untun (tunnel).
+-- Shows type, PID, directory, and allows killing one-by-one or all at once.
+function M.inspect_opencode_processes()
+  local entries = {}
+  local is_darwin = vim.fn.system("uname -s"):gsub("%s+", "") == "Darwin"
+
+  -- Collect all opencode processes (server + client) via ps
+  local oc_lines = vim.fn.systemlist("ps -eo pid,args | grep -E 'opencode (serve|attach)' | grep -v grep 2>/dev/null")
+  for _, line in ipairs(oc_lines) do
+    local pid, cmd = line:match("^%s*(%d+)%s+(.*)$")
+    if pid and cmd then
+      local kind
+      if cmd:find("opencode serve", 1, true) then
+        kind = "server"
+      elseif cmd:find("opencode attach", 1, true) then
+        kind = "client"
+      end
+      if kind then
+        local cwd = get_proc_cwd(pid, is_darwin)
+        local dir = cwd ~= "" and vim.fn.fnamemodify(cwd, ":~") or "?"
+        table.insert(entries, { kind = kind, pid = pid, dir = dir, cmd = cmd })
+      end
+    end
+  end
+
+  -- Collect all untun tunnel processes.
+  -- NOTE: npx untun spawns two processes (npx parent + cloudflared child), both
+  -- matching "untun". We keep only the npx/node parent (the one whose command
+  -- starts with "npx" or "node") and count siblings so we can show "(+N children)"
+  -- in the label. When killing we use pkill -f untun to kill the whole tree.
+  local tun_lines = vim.fn.systemlist("ps -eo pid,args | grep untun | grep -v grep 2>/dev/null")
+  local tun_all = {}
+  for _, line in ipairs(tun_lines) do
+    local pid, cmd = line:match("^%s*(%d+)%s+(.*)$")
+    if pid and cmd then
+      table.insert(tun_all, { pid = pid, cmd = cmd })
+    end
+  end
+  -- Identify the parent: npm/npx is the top-level launcher
+  local tun_parent = nil
+  for _, t in ipairs(tun_all) do
+    if t.cmd:match("^npm") or t.cmd:match("^npx") then
+      tun_parent = t
+      break
+    end
+  end
+  -- Fallback: if no npx/node found, take the lowest PID as parent
+  if not tun_parent and #tun_all > 0 then
+    table.sort(tun_all, function(a, b) return tonumber(a.pid) < tonumber(b.pid) end)
+    tun_parent = tun_all[1]
+  end
+  if tun_parent then
+    local child_count = #tun_all - 1
+    local cwd = get_proc_cwd(tun_parent.pid, is_darwin)
+    local dir = cwd ~= "" and vim.fn.fnamemodify(cwd, ":~") or "?"
+    local extra = child_count > 0 and string.format(" (+%d child)", child_count) or ""
+    table.insert(entries, { kind = "tunnel", pid = tun_parent.pid, dir = dir, cmd = tun_parent.cmd, extra = extra, kill_tree = true })
+  end
+
+  if #entries == 0 then
+    vim.notify("No opencode processes found", vim.log.levels.INFO)
+    return
+  end
+
+  -- NOTE: Helper to reset this instance's runtime state if the killed pid matches.
+  local function maybe_clear_state(e)
+    if e.kind == "server" and M._port then
+      -- If the killed server was the one we track for this project, clear port state.
+      -- We can't know for certain (different project may share port), so clear conservatively.
+      M._port = nil
+    elseif e.kind == "tunnel" and M._tunnel_pid == tonumber(e.pid) then
+      M._tunnel_pid = nil
+      M._tunnel_handle = nil
+      M._tunnel_url = nil
+    end
+  end
+
+  local function kill_entry(e)
+    if e.kill_tree then
+      vim.fn.system("pkill -f untun 2>/dev/null || true")
+    else
+      vim.fn.system(string.format("kill %s 2>/dev/null || true", e.pid))
+    end
+    maybe_clear_state(e)
+  end
+
+  -- Build display strings: [type] pid  dir  (extra)
+  local options = { "Kill All", "Cancel" }
+  for _, e in ipairs(entries) do
+    local label = string.format("[%-6s] pid %-6s  %s%s", e.kind, e.pid, e.dir, e.extra or "")
+    table.insert(options, label)
+  end
+
+  vim.ui.select(options, { prompt = "Inspect OpenCode processes (Kill All / select to kill one):" }, function(choice, idx)
+    if not choice or choice == "Cancel" then
+      return
+    end
+
+    if choice == "Kill All" then
+      vim.ui.select(
+        { "Yes, kill all", "No, cancel" },
+        { prompt = string.format("Confirm: kill ALL %d processes?", #entries) },
+        function(confirm)
+          if not confirm or not confirm:match("^Yes") then
+            vim.notify("Cancelled", vim.log.levels.INFO)
+            return
+          end
+          for _, e in ipairs(entries) do
+            kill_entry(e)
+          end
+          vim.notify(string.format("Killed %d process(es)", #entries), vim.log.levels.INFO)
+        end
+      )
+      return
+    end
+
+    -- Single selection: idx 1 = "Kill All", 2 = "Cancel", 3+ = entries
+    local entry = entries[idx - 2]
+    if not entry then
+      vim.notify("Selection error", vim.log.levels.ERROR)
+      return
+    end
+
+    vim.ui.select(
+      { "Yes, kill", "No, cancel" },
+      { prompt = string.format("Kill [%s] pid %s  %s ?", entry.kind, entry.pid, entry.dir) },
+      function(confirm)
+        if not confirm or not confirm:match("^Yes") then
+          vim.notify("Cancelled", vim.log.levels.INFO)
+          return
+        end
+        kill_entry(entry)
+        vim.notify(string.format("Killed [%s] pid %s", entry.kind, entry.pid), vim.log.levels.INFO)
+      end
+    )
   end)
 end
 
