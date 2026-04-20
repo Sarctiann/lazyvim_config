@@ -225,6 +225,7 @@ function M.get_cli_cmd()
   -- extra args (like "-s <session_id>") to `opencode attach`.
   return string.format(
     [[oc__main() {
+    echo "\n\n\n\n\n\n\n\n\n\n\n"
     export OPENCODE_SERVER_USERNAME=%s
     export OPENCODE_SERVER_PASSWORD=%s
     PORT_FILE="%s"
@@ -267,8 +268,8 @@ function M.get_cli_cmd()
       if [ -n "$EXISTING_PORT" ] && _oc_port_alive "$EXISTING_PORT"; then
         _oc_log "FAST PATH: server alive on port $EXISTING_PORT, attaching"
 
-        echo "\nThe Server already exist. Attaching OpenCode CLI...\n"
-     
+        echo "The Server already exist. Attaching OpenCode CLI..."
+
         exec opencode attach "http://127.0.0.1:$EXISTING_PORT" "$@"
       else
         _oc_log "SLOW PATH: port check failed (port=$EXISTING_PORT)"
@@ -282,7 +283,7 @@ function M.get_cli_cmd()
     LOGFILE="${PORT_FILE}.serve.log"
     _oc_log "Starting server, LOGFILE=$LOGFILE"
 
-    echo "\nStarting OpenCode server. Please wait...\n"
+    echo "Starting OpenCode server. Please wait..."
 
     # NOTE: nohup + stdin from /dev/null + stdout/stderr to logfile ensures the server
     # survives terminal close in both bash and zsh. setsid (Linux) or lack thereof (macOS)
@@ -304,7 +305,7 @@ function M.get_cli_cmd()
     if [ -z "$PORT" ]; then
       _oc_log "ERROR: could not detect port after 5s"
 
-      echo "\nERROR: Could not detect opencode server port after 5s\n" >&2
+      echo "ERROR: Could not detect opencode server port after 5s" >&2
     
     exit 1
     fi
@@ -312,7 +313,7 @@ function M.get_cli_cmd()
     echo "$PORT" > "$PORT_FILE"
     _oc_log "Server started on port $PORT, PORT_FILE written"
 
-    echo "\nStarting OpenCode CLI...\n"
+    echo "Starting OpenCode CLI..."
 
     opencode attach "http://127.0.0.1:$PORT" "$@"
     _oc_log "opencode attach exited with code $?"
@@ -369,6 +370,14 @@ function M.toggle_tunnel()
     args = { "untun", "tunnel", tunnel_target_url },
     -- NOTE: NOT detached — tunnel dies when neovim exits
     stdio = { stdin_pipe, stdout_pipe, stderr_pipe },
+    -- Explicitly provide optional uv.spawn options to satisfy static checkers
+    env = nil,
+    cwd = nil,
+    uid = nil,
+    gid = nil,
+    verbatim = false,
+    detached = false,
+    hide = false,
   }, function()
     vim.schedule(function()
       M._tunnel_handle = nil
@@ -727,7 +736,9 @@ function M.inspect_opencode_processes()
   end
   -- Fallback: if no npx/node found, take the lowest PID as parent
   if not tun_parent and #tun_all > 0 then
-    table.sort(tun_all, function(a, b) return tonumber(a.pid) < tonumber(b.pid) end)
+    table.sort(tun_all, function(a, b)
+      return tonumber(a.pid) < tonumber(b.pid)
+    end)
     tun_parent = tun_all[1]
   end
   if tun_parent then
@@ -735,7 +746,10 @@ function M.inspect_opencode_processes()
     local cwd = get_proc_cwd(tun_parent.pid, is_darwin)
     local dir = cwd ~= "" and vim.fn.fnamemodify(cwd, ":~") or "?"
     local extra = child_count > 0 and string.format(" (+%d child)", child_count) or ""
-    table.insert(entries, { kind = "tunnel", pid = tun_parent.pid, dir = dir, cmd = tun_parent.cmd, extra = extra, kill_tree = true })
+    table.insert(
+      entries,
+      { kind = "tunnel", pid = tun_parent.pid, dir = dir, cmd = tun_parent.cmd, extra = extra, kill_tree = true }
+    )
   end
 
   if #entries == 0 then
@@ -772,49 +786,53 @@ function M.inspect_opencode_processes()
     table.insert(options, label)
   end
 
-  vim.ui.select(options, { prompt = "Inspect OpenCode processes (Kill All / select to kill one):" }, function(choice, idx)
-    if not choice or choice == "Cancel" then
-      return
-    end
+  vim.ui.select(
+    options,
+    { prompt = "Inspect OpenCode processes (Kill All / select to kill one):" },
+    function(choice, idx)
+      if not choice or choice == "Cancel" then
+        return
+      end
 
-    if choice == "Kill All" then
+      if choice == "Kill All" then
+        vim.ui.select(
+          { "Yes, kill all", "No, cancel" },
+          { prompt = string.format("Confirm: kill ALL %d processes?", #entries) },
+          function(confirm)
+            if not confirm or not confirm:match("^Yes") then
+              vim.notify("Cancelled", vim.log.levels.INFO)
+              return
+            end
+            for _, e in ipairs(entries) do
+              kill_entry(e)
+            end
+            vim.notify(string.format("Killed %d process(es)", #entries), vim.log.levels.INFO)
+          end
+        )
+        return
+      end
+
+      -- Single selection: idx 1 = "Kill All", 2 = "Cancel", 3+ = entries
+      local entry = entries[idx - 2]
+      if not entry then
+        vim.notify("Selection error", vim.log.levels.ERROR)
+        return
+      end
+
       vim.ui.select(
-        { "Yes, kill all", "No, cancel" },
-        { prompt = string.format("Confirm: kill ALL %d processes?", #entries) },
+        { "Yes, kill", "No, cancel" },
+        { prompt = string.format("Kill [%s] pid %s  %s ?", entry.kind, entry.pid, entry.dir) },
         function(confirm)
           if not confirm or not confirm:match("^Yes") then
             vim.notify("Cancelled", vim.log.levels.INFO)
             return
           end
-          for _, e in ipairs(entries) do
-            kill_entry(e)
-          end
-          vim.notify(string.format("Killed %d process(es)", #entries), vim.log.levels.INFO)
+          kill_entry(entry)
+          vim.notify(string.format("Killed [%s] pid %s", entry.kind, entry.pid), vim.log.levels.INFO)
         end
       )
-      return
     end
-
-    -- Single selection: idx 1 = "Kill All", 2 = "Cancel", 3+ = entries
-    local entry = entries[idx - 2]
-    if not entry then
-      vim.notify("Selection error", vim.log.levels.ERROR)
-      return
-    end
-
-    vim.ui.select(
-      { "Yes, kill", "No, cancel" },
-      { prompt = string.format("Kill [%s] pid %s  %s ?", entry.kind, entry.pid, entry.dir) },
-      function(confirm)
-        if not confirm or not confirm:match("^Yes") then
-          vim.notify("Cancelled", vim.log.levels.INFO)
-          return
-        end
-        kill_entry(entry)
-        vim.notify(string.format("Killed [%s] pid %s", entry.kind, entry.pid), vim.log.levels.INFO)
-      end
-    )
-  end)
+  )
 end
 
 return M
