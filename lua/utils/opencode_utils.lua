@@ -1,13 +1,13 @@
 local M = {}
 
 -- WARN:
--- You will want to add the following MCP entries to your `~/.config/opencode/opencode.jsonc`
+-- You will want to add the following MCP entry to your `~/.config/opencode/opencode.jsonc`
 -- if you have an `opencode.json` instead, remove the comments.
 --
 --  // MCP servers configuration
 --  "mcp": {
 --    // Neovim MCP server for buffer access and editing (bigcodegen)
---    "nvim-complete": {
+--    "neovim": {
 --      "type": "local",
 --      "command": ["npx", "-y", "mcp-neovim-server"],
 --      "enabled": true,
@@ -16,16 +16,6 @@ local M = {}
 --        "ALLOW_SHELL_COMMANDS": "true",
 --        // Socket path for neovim connection (uses NVIM env var)
 --        "NVIM_SOCKET_PATH": "{env:NVIM}",
---      },
---    },
---    // Alternative Neovim MCP server (nvim-mcp)
---    "nvim-fast": {
---      "type": "local",
---      "command": ["nvim-mcp", "--connect", "auto"],
---      "enabled": true,
---      "environment": {
---        // Socket path for neovim connection (uses NVIM env var)
---        "NVIM": "{env:NVIM}",
 --      },
 --    },
 --  }
