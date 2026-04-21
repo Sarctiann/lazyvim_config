@@ -39,98 +39,88 @@ local OPENCODE_MCP_CONFIG_FILE = vim.fn.fnamemodify(debug.getinfo(1, "S").source
   .. "/opencode_nvim_mcps.jsonc"
 
 -- NOTE: Runtime state for the current neovim instance.
--- These are NOT persisted — they die with neovim.
--- _port is written by get_cli_cmd's shell script into a tempfile and read back by Lua
--- for toggle_tunnel and show_info.
+-- These are NOT persisted — they live only for the lifetime of this neovim process.
+-- Each neovim instance owns its own opencode server; state is never shared across instances.
+-- _port        : port of the server started by THIS instance (read back from PORT_FILE after startup)
+-- _server_pid  : PID of the `opencode serve` process started by this instance
+-- _tunnel_*    : state for the optional cloudflare tunnel (npx untun)
+-- _cleanup_registered : guard so VimLeavePre is only registered once
 M._port = nil
-M._tunnel_handle = nil -- vim.loop.process handle (non-detached, dies with neovim)
+M._server_pid = nil -- PID of the opencode serve process started by this instance
+M._tunnel_handle = nil -- vim.loop.process handle for npx untun (NOT detached — dies with neovim)
 M._tunnel_pid = nil
 M._tunnel_url = nil
-M._refcount_registered = false -- tracks whether this instance already incremented the refcount
+M._cleanup_registered = false -- guard: VimLeavePre registered at most once per nvim instance
 
--- NOTE: Path to the tempfile where the shell script writes the captured port.
--- Namespaced by a hash of the working directory so each project gets its own server,
--- but multiple neovim instances in the same directory share the same server.
+-- NOTE: Path to the tempfile where the bash script writes the port after the server starts.
+-- Namespaced by the neovim PID so every neovim instance has its own isolated set of files:
+--   port.nvim<PID>            — the TCP port the server is listening on
+--   port.nvim<PID>.serve.log  — stdout/stderr of `opencode serve`
+--   port.nvim<PID>.server.pid — PID of the `opencode serve` process
+-- All three files are deleted by register_cleanup() when neovim exits.
 local function get_port_file()
-  local cwd = vim.fn.getcwd()
-  -- NOTE: Simple djb2 hash to avoid filesystem-unsafe characters from the path
-  local hash = 5381
-  for i = 1, #cwd do
-    hash = ((hash * 33) + string.byte(cwd, i)) % 0x100000000
-  end
-  return vim.fn.expand(string.format("~/.local/share/opencode/port.%x", hash))
+  local nvim_pid = vim.fn.getpid()
+  return vim.fn.expand(string.format("~/.local/share/opencode/port.nvim%d", nvim_pid))
 end
 
--- NOTE: Atomically adjust the refcount file for the current PORT_FILE.
--- Uses mkdir as an atomic lock (POSIX-portable, works on macOS without flock).
--- Returns the new refcount value.
-local function adjust_refcount(delta)
-  local refcount_file = get_port_file() .. ".refcount"
-  local lock_dir = get_port_file() .. ".lock"
-  local dir = vim.fn.fnamemodify(refcount_file, ":h")
-  vim.fn.mkdir(dir, "p")
-
-  -- NOTE: mkdir is atomic on all POSIX systems — it fails if the dir already exists.
-  -- Spin with a short sleep until we acquire the lock.
-  local cmd = string.format(
-    [[
-      LOCK="%s"
-      RCFILE="%s"
-      DELTA=%d
-      tries=0
-      while ! mkdir "$LOCK" 2>/dev/null; do
-        tries=$((tries + 1))
-        [ "$tries" -gt 100 ] && echo "0" && exit 1
-        sleep 0.01
-      done
-      trap 'rmdir "$LOCK" 2>/dev/null' EXIT
-      count=0
-      [ -f "$RCFILE" ] && count=$(cat "$RCFILE" 2>/dev/null || echo 0)
-      count=$(( count + DELTA ))
-      [ "$count" -lt 0 ] && count=0
-      echo "$count" > "$RCFILE"
-      echo "$count"
-    ]],
-    lock_dir,
-    refcount_file,
-    delta
-  )
-  local result = vim.fn.system({ "bash", "-c", cmd })
-  return tonumber(result:match("%d+")) or 0
-end
-
--- NOTE: Increment refcount and register a VimLeavePre autocmd to decrement on exit.
--- Safe to call multiple times — only registers once per nvim instance.
-function M.register_refcount()
-  if M._refcount_registered then
+-- NOTE: Registers a VimLeavePre autocmd that fully tears down everything this neovim instance
+-- started: the opencode server, any attached client, and the cloudflare tunnel (if open).
+-- Cleanup order:
+--   1. Kill all processes bound to our port (covers both `opencode serve` and `opencode attach`)
+--   2. Kill the server by its saved PID as a belt-and-suspenders fallback
+--   3. Kill the tunnel process tree via pkill -f untun
+--   4. Delete PORT_FILE, LOGFILE, and PID_FILE
+-- Safe to call multiple times — the guard flag ensures the autocmd is only created once.
+function M.register_cleanup()
+  if M._cleanup_registered then
     return
   end
-  M._refcount_registered = true
-  adjust_refcount(1)
+  M._cleanup_registered = true
 
   vim.api.nvim_create_autocmd("VimLeavePre", {
     callback = function()
-      local new_count = adjust_refcount(-1)
-      if new_count <= 0 then
-        local port_file = get_port_file()
-        -- NOTE: Kill the server process before cleaning up files.
-        -- Read the port and find the process listening on it.
-        local f = io.open(port_file, "r")
-        if f then
-          local port = f:read("*a"):gsub("%s+", "")
-          f:close()
-          if port ~= "" then
-            vim.fn.system(string.format("lsof -ti tcp:%s | xargs kill 2>/dev/null", port))
-            if M._tunnel_pid then
-              vim.fn.system(string.format("kill %s 2>/dev/null || true", M._tunnel_pid))
-            end
-          end
+      local port_file = get_port_file()
+      local pid_file = port_file .. ".server.pid"
+
+      -- NOTE: Try to recover the server PID from the PID_FILE in case M._server_pid
+      -- was never populated (e.g. the server was started in a previous TUI session
+      -- within the same neovim instance but the Lua state was not updated).
+      local server_pid = M._server_pid
+      if not server_pid then
+        local pf = io.open(pid_file, "r")
+        if pf then
+          server_pid = pf:read("*a"):gsub("%s+", "")
+          pf:close()
         end
-        os.remove(port_file)
-        os.remove(port_file .. ".serve.log")
-        os.remove(port_file .. ".refcount")
-        vim.fn.delete(port_file .. ".lock", "d")
       end
+
+      -- NOTE: Primary kill: find every process listening on our port and send SIGKILL.
+      -- This reliably kills both `opencode serve` and any `opencode attach` still running.
+      local f = io.open(port_file, "r")
+      if f then
+        local port = f:read("*a"):gsub("%s+", "")
+        f:close()
+        if port ~= "" then
+          vim.fn.system(string.format("lsof -ti tcp:%s | xargs kill -9 2>/dev/null || true", port))
+        end
+      end
+
+      -- NOTE: Fallback kill by PID in case lsof missed the server (e.g. it already
+      -- closed the port but the process is still alive).
+      if server_pid and server_pid ~= "" then
+        vim.fn.system(string.format("kill -9 %s 2>/dev/null || true", server_pid))
+      end
+
+      -- NOTE: Kill the entire untun/cloudflared process tree if a tunnel was started.
+      -- pkill -f is used because npx spawns child processes that share the "untun" string.
+      if M._tunnel_pid then
+        vim.fn.system("pkill -f untun 2>/dev/null || true")
+      end
+
+      -- NOTE: Remove all files owned by this neovim instance.
+      os.remove(port_file)
+      os.remove(port_file .. ".serve.log")
+      os.remove(pid_file)
     end,
   })
 end
@@ -168,8 +158,10 @@ local function get_local_ip()
   return "127.0.0.1"
 end
 
--- NOTE: Returns the server URL using the port read from the tempfile.
--- Returns nil if the port has not been captured yet.
+-- NOTE: Returns the server URL for this neovim instance.
+-- Tries M._port first (already cached in Lua state), then falls back to reading
+-- PORT_FILE from disk (set by the bash script after `opencode serve` starts).
+-- Returns nil if the server has not been started yet for this instance.
 function M.get_server_url()
   if M._port then
     return string.format("http://127.0.0.1:%d", M._port)
@@ -187,9 +179,10 @@ function M.get_server_url()
   return nil
 end
 
--- NOTE: Called by on_open hook in local_config.lua before cli-integration reads cli_cmd.
--- If we already know the port (from a previous open), write it to the port file
--- so the bash script can find it immediately and skip server startup.
+-- NOTE: Called by the on_open hook in local_config.lua each time the OpenCode TUI is opened.
+-- If M._port is already known (server was started earlier in this neovim session), we write
+-- the port back to PORT_FILE so the bash script's fast path can find it immediately and
+-- skip starting a new server. Also arms the VimLeavePre cleanup on the first call.
 function M.on_open()
   if M._port then
     local port_file = get_port_file()
@@ -201,28 +194,36 @@ function M.on_open()
       f:close()
     end
   end
-  -- NOTE: Register refcount on first open so VimLeavePre cleanup is armed
-  M.register_refcount()
+  -- NOTE: Arm cleanup on first open. register_cleanup() is idempotent.
+  M.register_cleanup()
 end
 
 -- NOTE: Returns the full bash script used as cli_cmd for cli-integration.
--- WARN: cli-integration concatenates extra args (e.g. " -s <session_id>") as raw text
--- after cli_cmd. To ensure those args reach `opencode attach`, the script stores them
--- in EXTRA_ARGS by capturing everything after a sentinel comment, then passes them
--- to both the fast path and the normal path.
--- The script:
---   1. Checks if a port file exists and the server responds via /dev/tcp (fast path)
---   2. If not, starts `opencode serve` in background and polls for the port (max 5s)
---   3. Writes the captured port to a tempfile so Lua can read it (for toggle_tunnel / show_info)
---   4. Runs `opencode attach` with the correct URL and any extra args
+-- WARN: cli-integration appends extra args (e.g. " -s <session_id>") as raw text after
+-- cli_cmd. The script is wrapped in a shell function so those appended args become
+-- positional parameters ($@) forwarded to `opencode attach`.
+--
+-- Lifecycle per neovim instance:
+--   Fast path  — PORT_FILE exists AND the server responds on that port:
+--                skip startup, exec `opencode attach` immediately.
+--                This is the normal case when the TUI is closed (Ctrl+C kills the client
+--                but leaves the server running) and then re-opened.
+--   Slow path  — PORT_FILE absent or server unreachable:
+--                start `opencode serve --port 0` in background, poll LOGFILE for the
+--                assigned port (up to 5s), write PORT_FILE and PID_FILE, then attach.
+--
+-- Files written (all under ~/.local/share/opencode/, namespaced by nvim PID):
+--   PORT_FILE        — the TCP port the server is listening on
+--   LOGFILE          — stdout/stderr of `opencode serve`
+--   PID_FILE         — PID of the `opencode serve` process (read by register_cleanup)
 function M.get_cli_cmd()
   local username = M.OPENCODE_SERVER_USERNAME
   local password = M.OPENCODE_SERVER_PASSWORD
   local mcp_config = OPENCODE_MCP_CONFIG_FILE
 
-  -- NOTE: The script is wrapped in a function so cli-integration's appended args
-  -- become shell arguments to that function. This is the cleanest way to forward
-  -- extra args (like "-s <session_id>") to `opencode attach`.
+  -- NOTE: The script body is wrapped in oc__main() so cli-integration's appended args
+  -- (e.g. "-s <session_id>") become positional parameters and can be forwarded via "$@"
+  -- to `opencode attach` without any string manipulation.
   return string.format(
     [[oc__main() {
     echo "\n\n\n\n\n\n\n\n\n\n\n"
@@ -245,31 +246,35 @@ function M.get_cli_cmd()
     _oc_log "SHELL=$SHELL (pid=$$)"
     _oc_log "args=$*"
 
-    # NOTE: Portable TCP health-check — tries nc -z first (works on macOS BSD nc and most
-    # Linux distros), falls back to bash /dev/tcp (bash-only builtin), then to python3 socket
-    # as a last resort. This covers macOS, Debian/Ubuntu, Arch, Alpine, and minimal containers.
+    # NOTE: Each neovim instance has its own PORT_FILE (namespaced by nvim PID),
+    # so multiple neovim instances never share a server — each owns and cleans up its own.
+    # LOGFILE receives stdout/stderr from `opencode serve` and is parsed to detect the port.
+    # PID_FILE stores the server PID so the Lua cleanup can kill it even if M._server_pid
+    # was never populated (e.g. neovim crashed and was reopened with the same PID file present).
+    LOGFILE="${PORT_FILE}.serve.log"
+    PID_FILE="${PORT_FILE}.server.pid"
+
+    # NOTE: Portable TCP health-check — tries nc first (works on macOS and most Linux),
+    # then bash /dev/tcp (bash builtin, no external tool needed), then python3 as last resort.
     _oc_port_alive() {
       local port="$1"
-      local rc
-      nc -z 127.0.0.1 "$port" 2>/dev/null; rc=$?; _oc_log "  nc -z exit=$rc"
-      [ "$rc" -eq 0 ] && return 0
-      bash -c "(echo >/dev/tcp/127.0.0.1/$port)" 2>/dev/null; rc=$?; _oc_log "  bash /dev/tcp exit=$rc"
-      [ "$rc" -eq 0 ] && return 0
-      python3 -c "import socket; s=socket.socket(); s.settimeout(1); s.connect(('127.0.0.1',$port)); s.close()" 2>/dev/null; rc=$?; _oc_log "  python3 exit=$rc"
-      [ "$rc" -eq 0 ] && return 0
+      nc -z 127.0.0.1 "$port" 2>/dev/null && return 0
+      bash -c "(echo >/dev/tcp/127.0.0.1/$port)" 2>/dev/null && return 0
+      python3 -c "import socket; s=socket.socket(); s.settimeout(1); s.connect(('127.0.0.1',$port)); s.close()" 2>/dev/null && return 0
       return 1
     }
 
-    # NOTE: Fast path — if port file exists and server responds, skip server startup
-    # and attach immediately. This is the common case after the first open.
+    # NOTE: Fast path — if PORT_FILE exists and the server is alive, attach immediately.
+    # This is the common case: the TUI was closed (Ctrl+C kills `opencode attach` but
+    # leaves `opencode serve` running), and the user re-opens it with <leader>aa.
+    # on_open() in Lua also pre-writes the PORT_FILE when M._port is already known,
+    # ensuring the fast path succeeds even if PORT_FILE was removed by an earlier cleanup.
     if [ -f "$PORT_FILE" ]; then
       EXISTING_PORT=$(cat "$PORT_FILE" 2>/dev/null)
       _oc_log "PORT_FILE exists, EXISTING_PORT=$EXISTING_PORT"
       if [ -n "$EXISTING_PORT" ] && _oc_port_alive "$EXISTING_PORT"; then
         _oc_log "FAST PATH: server alive on port $EXISTING_PORT, attaching"
-
-        echo "The Server already exist. Attaching OpenCode CLI..."
-
+        echo "Server already running. Attaching OpenCode CLI..."
         exec opencode attach "http://127.0.0.1:$EXISTING_PORT" "$@"
       else
         _oc_log "SLOW PATH: port check failed (port=$EXISTING_PORT)"
@@ -278,23 +283,26 @@ function M.get_cli_cmd()
       _oc_log "SLOW PATH: PORT_FILE does not exist"
     fi
 
-    # NOTE: Slow path — start a new server in the background.
-    # The logfile is per-project (derived from PORT_FILE) so it persists across terminal reopens.
-    LOGFILE="${PORT_FILE}.serve.log"
+    # NOTE: Slow path — no running server found. Start a fresh `opencode serve`.
+    # nohup + /dev/null stdin + redirect to LOGFILE ensures the process survives
+    # terminal detach. `disown` removes it from the shell's job table so it won't
+    # receive SIGHUP when the shell exits. The server PID is written to PID_FILE
+    # immediately so register_cleanup() can kill it on neovim exit even if the
+    # server crashes before writing the port.
     _oc_log "Starting server, LOGFILE=$LOGFILE"
-
     echo "Starting OpenCode server. Please wait..."
 
-    # NOTE: nohup + stdin from /dev/null + stdout/stderr to logfile ensures the server
-    # survives terminal close in both bash and zsh. setsid (Linux) or lack thereof (macOS)
-    # is not needed because nohup already ignores SIGHUP.
+    # NOTE: nohup + stdin from /dev/null + stdout/stderr to LOGFILE ensures the server
+    # survives terminal close. setsid is unnecessary because nohup already ignores SIGHUP.
     nohup env OPENCODE_CONFIG=%s opencode serve --port 0 --hostname 0.0.0.0 --mdns --print-logs </dev/null >"$LOGFILE" 2>&1 &
     SERVER_PID=$!
     disown $SERVER_PID 2>/dev/null
-    _oc_log "Server PID=$SERVER_PID (nohup + disown)"
+    echo "$SERVER_PID" > "$PID_FILE"
+    _oc_log "Server PID=$SERVER_PID (nohup + disown), PID_FILE written"
 
-    # NOTE: Poll the server log for up to 5s waiting for the "listening on" line
-    # that contains the dynamically assigned port number.
+    # NOTE: Poll LOGFILE for up to 5s (50 × 100ms) waiting for the "listening on" line
+    # that contains the dynamically assigned port. Port 0 means the OS picks a free port,
+    # so we must parse it from the log rather than using a fixed value.
     PORT=""
     for i in $(seq 1 50); do
       sleep 0.1
@@ -304,10 +312,8 @@ function M.get_cli_cmd()
 
     if [ -z "$PORT" ]; then
       _oc_log "ERROR: could not detect port after 5s"
-
       echo "ERROR: Could not detect opencode server port after 5s" >&2
-    
-    exit 1
+      exit 1
     fi
     mkdir -p $(dirname "$PORT_FILE")
     echo "$PORT" > "$PORT_FILE"
@@ -327,13 +333,14 @@ function M.get_cli_cmd()
   )
 end
 
--- NOTE: Toggles the cloudflare tunnel via npx untun.
--- If a tunnel is already active, kills it. Otherwise starts a new one.
--- Reads the port from the tempfile written by the cli_cmd shell script.
+-- NOTE: Toggles the cloudflare tunnel via `npx untun`.
+-- If a tunnel is already active (M._tunnel_handle is set), kills the entire untun/cloudflared
+-- process tree and clears state. Otherwise starts a new tunnel pointing at this instance's
+-- server port (M._port). The tunnel handle is NOT detached so it dies if neovim exits
+-- without an explicit stop; register_cleanup() also kills it via pkill -f untun.
 function M.toggle_tunnel()
-  -- NOTE: Kill existing tunnel if active.
-  -- WARN: SIGTERM to the npx handle alone does NOT propagate to the cloudflared child process.
-  -- We must pkill -f untun to kill the entire process tree, same approach used in main branch.
+  -- NOTE: SIGTERM to the npx handle alone does NOT propagate to the cloudflared child process.
+  -- pkill -f untun kills the entire process tree reliably.
   if M._tunnel_handle then
     vim.fn.jobstart({ "pkill", "-f", "untun" }, {
       on_exit = function()
