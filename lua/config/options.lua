@@ -8,6 +8,7 @@ vim.opt.relativenumber = false
 vim.api.nvim_command("highlight CursorL guibg=#9ece6a")
 vim.api.nvim_command("highlight VisualCursor guibg=#bb9af7")
 vim.api.nvim_command("highlight ReplaceCursor guibg=#f7768e")
+vim.api.nvim_command("highlight CmdTermCursor guibg=#55bbdd")
 
 -- minimap colors
 vim.api.nvim_set_hl(0, "CodewindowBorder", { bg = "#000e15" })
@@ -18,10 +19,6 @@ vim.api.nvim_set_hl(0, "UnusedCode", { fg = "darkcyan", bg = "#003040" })
 
 -- New group for `flash.nvim` pluggin
 vim.api.nvim_set_hl(0, "NewFlashLabel", { fg = "#ccfaff", bg = "#7f0044", bold = true })
-
--- Apply confs
-vim.opt_local.guicursor =
-  "n-c-ci-cr-sm:block,i:ver30-CursorL,v-ve-o:hor30-VisualCursor,r:hor50-ReplaceCursor,a:blinkon100"
 
 -- Set colorcolumn
 vim.opt.colorcolumn = "80"
