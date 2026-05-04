@@ -97,7 +97,7 @@ return {
       term = {
         enabled = true,
         keymap = { preset = "inherit" },
-        sources = { "copilot", "buffer" },
+        sources = { "copilot" },
         completion = {
           list = { selection = { auto_insert = false } },
         },
