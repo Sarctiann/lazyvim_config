@@ -27,7 +27,7 @@ return {
             module = "blink-copilot",
             score_offset = 100,
             async = true,
-            -- In terminal buffers, Copilot returns a range starting at col 0
+            -- NOTE: In terminal buffers, Copilot returns a range starting at col 0
             -- (including the shell prompt). Fix the range to start at the
             -- cursor column so only the typed text gets replaced.
             transform_items = function(_, items)
@@ -39,7 +39,7 @@ return {
               for _, item in ipairs(items) do
                 if item.textEdit then
                   local text = item.textEdit.newText or ""
-                  -- Skip items shorter than cursor position (would produce empty label)
+                  -- NOTE: Skip items shorter than cursor position (would produce empty label)
                   if #text > cursor_col then
                     item.textEdit.range["start"].character = cursor_col
                     item.label = string.sub(text, cursor_col + 1)
@@ -89,11 +89,17 @@ return {
       keymap = {
         preset = "super-tab",
         ["<C-y>"] = { nil },
-        -- Trigger completion menu in terminal mode
+        -- NOTE: Trigger completion menu in terminal mode
         ["<C-Space>"] = { "show", "hide", "fallback" },
+        -- NOTE: Override super-tab preset's `fallback_to_mappings` with `fallback` for these keys.
+        -- `fallback_to_mappings` does not reach terminal-mode keymaps (e.g. cli-integration's
+        -- `<C-p>` / `<C-n>` / `<C-f>`). `fallback` sends the raw key event, which does.
+        ["<C-p>"] = { "select_prev", "fallback" },
+        ["<C-n>"] = { "select_next", "fallback" },
+        ["<C-f>"] = { "scroll_documentation_down", "fallback" },
       },
 
-      -- Enable blink in terminal buffers (disabled by default)
+      -- NOTE: Enable blink in terminal buffers (disabled by default)
       term = {
         enabled = true,
         keymap = { preset = "inherit" },

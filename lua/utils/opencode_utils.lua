@@ -24,9 +24,12 @@ OC_DEBUG = false
 M.OPENCODE_SERVER_USERNAME = "opencode"
 M.OPENCODE_SERVER_PASSWORD = "open-sarc-code"
 local OPENCODE_DB = vim.fn.expand("~/.local/share/opencode/opencode.db")
--- NOTE: Resolve MCP config path relative to this file's directory using Neovim's debug.getinfo
-local OPENCODE_MCP_CONFIG_FILE = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":h")
-  .. "/opencode_nvim_mcps.jsonc"
+-- NOTE: Resolve paths relative to this file's directory using Neovim's debug.getinfo
+local _this_dir = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":h")
+-- NOTE: Config directory with Neovim-specific skills, commands, and tools.
+-- Passed as OPENCODE_CONFIG_DIR so these only load when OpenCode is opened from Neovim.
+local OPENCODE_NEOVIM_CONFIG_DIR = _this_dir .. "/opencode-neovim"
+local OPENCODE_MCP_CONFIG_FILE = OPENCODE_NEOVIM_CONFIG_DIR .. "/opencode_nvim_mcps.jsonc"
 
 -- NOTE: Runtime state for the current neovim instance.
 -- These are NOT persisted — they live only for the lifetime of this neovim process.
@@ -210,6 +213,7 @@ function M.get_cli_cmd()
   local username = M.OPENCODE_SERVER_USERNAME
   local password = M.OPENCODE_SERVER_PASSWORD
   local mcp_config = OPENCODE_MCP_CONFIG_FILE
+  local neovim_config_dir = OPENCODE_NEOVIM_CONFIG_DIR
 
   -- NOTE: The script body is wrapped in oc__main() so cli-integration's appended args
   -- (e.g. "-s <session_id>") become positional parameters and can be forwarded via "$@"
@@ -284,7 +288,7 @@ function M.get_cli_cmd()
 
     # NOTE: nohup + stdin from /dev/null + stdout/stderr to LOGFILE ensures the server
     # survives terminal close. setsid is unnecessary because nohup already ignores SIGHUP.
-    nohup env OPENCODE_CONFIG=%s opencode serve --port 0 --hostname 0.0.0.0 --mdns --print-logs </dev/null >"$LOGFILE" 2>&1 &
+    nohup env OPENCODE_CONFIG=%s OPENCODE_CONFIG_DIR=%s opencode serve --port 0 --hostname 0.0.0.0 --mdns --print-logs </dev/null >"$LOGFILE" 2>&1 &
     SERVER_PID=$!
     disown $SERVER_PID 2>/dev/null
     echo "$SERVER_PID" > "$PID_FILE"
@@ -319,7 +323,8 @@ function M.get_cli_cmd()
     password,
     get_port_file(),
     OC_DEBUG and 1 or 0,
-    mcp_config
+    mcp_config,
+    neovim_config_dir
   )
 end
 
