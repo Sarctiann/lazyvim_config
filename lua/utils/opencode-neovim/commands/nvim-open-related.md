@@ -1,9 +1,11 @@
 ---
 description: Find and open files related to a topic in Neovim splits
 ---
+
 Find files related to: $ARGUMENTS
 
 Steps:
+
 1. Use vim_grep to search for "$ARGUMENTS" across the project.
 2. Identify the most relevant files (max 4) based on the results.
 3. Open each file with vim_file_open.

@@ -1,9 +1,11 @@
 ---
 description: Search project with vim_grep and show results in quickfix list
 ---
+
 Use vim_grep to search for the pattern: $ARGUMENTS
 
 After the search:
+
 1. Run vim_command with ":copen" to show the quickfix list in Neovim
 2. Summarize the results: how many matches, which files, notable patterns
 

@@ -26,18 +26,23 @@ The quickfix list is Neovim's built-in multi-file navigation hub. Populate it fo
 ## Core Pattern
 
 ### 1. Populate via `vim_grep`
+
 ```
 vim_grep(pattern, filePattern?)   // e.g. pattern="MyFunction", filePattern="*.ts"
 ```
+
 This automatically populates the quickfix list.
 
 ### 2. Open the list
+
 ```
 vim_command(":copen")
 ```
+
 User sees all matches. They can navigate with `:cn` / `:cp` or click entries.
 
 ### 3. Navigate programmatically
+
 ```
 vim_command(":cfirst")   // jump to first match
 vim_command(":cn")       // next match
@@ -46,6 +51,7 @@ vim_command(":clast")    // last match
 ```
 
 ### 4. Populate via LSP (references / diagnostics)
+
 ```
 vim_command(":lua vim.lsp.buf.references()")
 vim_command(":lua vim.diagnostic.setqflist()")
@@ -53,9 +59,11 @@ vim_command(":copen")
 ```
 
 ### 5. Read quickfix entries programmatically
+
 ```
 vim_command(":lua print(vim.fn.json_encode(vim.fn.getqflist()))")
 ```
+
 Parse the output to get file paths and line numbers for batch edits.
 
 ---
@@ -72,11 +80,11 @@ Parse the output to get file paths and line numbers for batch edits.
 
 ## Location List vs Quickfix
 
-| | Quickfix | Location List |
-|---|---|---|
-| Scope | Global (shared) | Per-window |
+|          | Quickfix               | Location List          |
+| -------- | ---------------------- | ---------------------- |
+| Scope    | Global (shared)        | Per-window             |
 | Commands | `:copen`, `:cn`, `:cp` | `:lopen`, `:ln`, `:lp` |
-| Use case | Project-wide results | Window-local results |
+| Use case | Project-wide results   | Window-local results   |
 
 Prefer **quickfix** for agent-driven operations (simpler, global).
 
@@ -84,9 +92,9 @@ Prefer **quickfix** for agent-driven operations (simpler, global).
 
 ## Common Mistakes
 
-| Mistake | Fix |
-|---|---|
-| Making multi-file edits without showing scope first | Always `vim_grep` + `:copen` before editing |
-| Using `vim_search` for project-wide search | `vim_search` is buffer-local; use `vim_grep` |
-| Forgetting to open quickfix after populating | Always call `:copen` so user sees results |
-| Parsing quickfix output manually from buffer | Use `getqflist()` for structured data |
+| Mistake                                             | Fix                                          |
+| --------------------------------------------------- | -------------------------------------------- |
+| Making multi-file edits without showing scope first | Always `vim_grep` + `:copen` before editing  |
+| Using `vim_search` for project-wide search          | `vim_search` is buffer-local; use `vim_grep` |
+| Forgetting to open quickfix after populating        | Always call `:copen` so user sees results    |
+| Parsing quickfix output manually from buffer        | Use `getqflist()` for structured data        |

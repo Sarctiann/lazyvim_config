@@ -15,10 +15,10 @@
       },
     },
   },
-  // Skill permissions for neovim-specific agents:
+  // Skill permissions for custom agents:
   // allow neovim skills freely, keep ask for superpowers
   "agent": {
-    "z-Direct-Action": {
+    "logic": {
       "permission": {
         "skill": {
           "using-neovim": "allow",
@@ -28,7 +28,47 @@
         },
       },
     },
-    "z-Quick-Answer": {
+    "forge": {
+      "permission": {
+        "skill": {
+          "using-neovim": "allow",
+          "using-quickfix": "allow",
+          "using-neovim-lsp": "allow",
+          "*": "ask",
+        },
+      },
+    },
+    "nexus": {
+      "permission": {
+        "skill": {
+          "using-neovim": "allow",
+          "using-quickfix": "allow",
+          "using-neovim-lsp": "allow",
+          "*": "ask",
+        },
+      },
+    },
+    "ultra": {
+      "permission": {
+        "skill": {
+          "using-neovim": "allow",
+          "using-quickfix": "allow",
+          "using-neovim-lsp": "allow",
+          "*": "ask",
+        },
+      },
+    },
+    "pilot": {
+      "permission": {
+        "skill": {
+          "using-neovim": "allow",
+          "using-quickfix": "allow",
+          "using-neovim-lsp": "allow",
+          "*": "ask",
+        },
+      },
+    },
+    "spark": {
       "permission": {
         "skill": {
           "using-neovim": "allow",
