@@ -109,5 +109,55 @@ return {
         },
       },
     },
+    -- NOTE: Override Tab in terminal buffers for word-by-word Copilot acceptance.
+    -- Instead of accepting the full suggestion, Tab inserts only the next word.
+    -- blink then detects the text change and updates the remaining suggestion,
+    -- so pressing Tab again accepts the next word, and so on.
+    init = function()
+      vim.api.nvim_create_autocmd("TermOpen", {
+        callback = function(ev)
+          vim.api.nvim_buf_set_keymap(ev.buf, "t", "<Tab>", "", {
+            callback = function()
+              local cmp = require("blink.cmp")
+              -- If blink's completion menu is visible, accept one word at a time
+              if cmp.is_visible() then
+                local item = cmp.get_selected_item()
+                if item and item.textEdit and item.textEdit.newText then
+                  local text = item.textEdit.newText
+                  -- Skip leading whitespace (find first non-whitespace char)
+                  local word_start = text:find("[%S]") or 1
+                  -- Find end of word (one or more whitespace chars after the word)
+                  local ws_start, ws_end = text:find("[%s]+", word_start)
+                  -- Extract word including trailing whitespace for proper word separation
+                  local word
+                  if ws_start then
+                    word = text:sub(word_start, ws_end)
+                  else
+                    word = text:sub(word_start)
+                  end
+                  if #word > 0 then
+                    -- Insert the word into the terminal
+                    vim.api.nvim_feedkeys(word, "t", false)
+                    -- Only show if not already visible (avoid flickering)
+                    vim.defer_fn(function()
+                      if not cmp.is_visible() then
+                        cmp.show()
+                      end
+                    end, 30)
+                    return ""
+                  end
+                end
+              end
+              -- No completion visible or no item selected: pass Tab through to the terminal
+              return vim.api.nvim_replace_termcodes("<Tab>", true, false, true)
+            end,
+            expr = true,
+            silent = false,
+            noremap = true,
+            desc = "blink.cmp: Word-by-word Copilot acceptance in terminal",
+          })
+        end,
+      })
+    end,
   },
 }
