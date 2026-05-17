@@ -1,6 +1,20 @@
 # Neovim Integration Rules
 
-At session start, invoke the `using-neovim` skill to configure editor-integrated behavior.
+## MCP Availability Check (RUN FIRST)
+
+Before applying ANY Neovim integration rules or invoking ANY Neovim skills:
+
+1. Try `neovim_vim_status`.
+2. **If it succeeds and returns valid data** → Neovim MCP is active. Continue with rules below.
+3. **If it fails, times out, or the tool is not available** → Neovim MCP is NOT active:
+   - Do **NOT** invoke any Neovim skills (`using-neovim`, `using-neovim-lsp`, `using-quickfix`).
+   - Do **NOT** attempt any `neovim_vim_*` tool calls.
+   - Fall back to standard tools only: use native `edit`/`write` for file modifications, `glob`/`grep`/`read` for file search and reading.
+   - Skip the rest of this file entirely.
+
+## When MCP is Active
+
+Invoke the `using-neovim` skill to configure editor-integrated behavior.
 
 ## Editor Interaction
 
