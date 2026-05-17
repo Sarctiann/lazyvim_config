@@ -104,6 +104,14 @@ local keys_op = {
     desc = "OpenCode New Session",
     silent = true,
   },
+  {
+    "<leader>aq",
+    function()
+      require("cli-integration").hooks.ask("OpenCode")
+    end,
+    desc = "OpenCode Ask (inline)",
+    mode = { "n", "v" },
+  },
   -- NOTE: OpenCode Sessions
   {
     "<leader>as",
@@ -174,6 +182,14 @@ for _, dir in ipairs(company_dirs) do
         ":CLIIntegration open_root Augment<CR>",
         desc = "Augment Code New Session",
         silent = true,
+      },
+      {
+        "<leader>aq",
+        function()
+          require("cli-integration").hooks.ask("Augment")
+        end,
+        desc = "Augment Ask (inline)",
+        mode = { "n", "v" },
       },
       -- NOTE: Augment Sessions
       {
@@ -263,6 +279,14 @@ return {
         ":CLIIntegration open_root Gemini<CR>",
         desc = "Gemini New Session",
         silent = true,
+        {
+          "<leader>aQ",
+          function()
+            require("cli-integration").hooks.ask("Gemini")
+          end,
+          desc = "Gemini Ask (inline)",
+          mode = { "n", "v" },
+        },
       },
       -- NOTE: Gemini Sessions
       {
