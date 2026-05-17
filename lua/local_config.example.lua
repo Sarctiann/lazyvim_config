@@ -30,8 +30,7 @@ return {
             table.insert(parts, data.selection)
             table.insert(parts, "```")
           else
-            local ref = data.relative_file .. ":" .. data.start_line
-            table.insert(parts, (integration.format_paths and integration.format_paths(ref)) or ("@" .. ref))
+            table.insert(parts, data.relative_file .. ":" .. data.start_line)
           end
           return table.concat(parts, "\n")
         end,
