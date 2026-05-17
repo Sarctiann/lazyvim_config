@@ -43,7 +43,15 @@ return {
       --- @type Cli-Integration.Integration[]
       integrations = integrations.integrations_implementations,
     },
-    keys = integrations.integrations_keys,
+    keys = vim.list_extend({
+      {
+        "<leader>a",
+        nil,
+        desc = "AI",
+        silent = true,
+        mode = { "n", "v" },
+      },
+    }, integrations.integrations_keys),
     -- NOTE: Comment the two lines below to use the plugin from GitHub
     dev = true,
     dir = plugin_dir,
