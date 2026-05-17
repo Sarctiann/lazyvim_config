@@ -23,6 +23,18 @@ return {
         format_paths = function(path)
           return "@" .. path .. " "
         end,
+        format_ask_query = function(data, integration)
+          local parts = { data.question, "" }
+          if data.selection then
+            table.insert(parts, "```" .. data.relative_file .. ":" .. data.start_line .. "-" .. data.end_line)
+            table.insert(parts, data.selection)
+            table.insert(parts, "```")
+          else
+            local ref = data.relative_file .. ":" .. data.start_line
+            table.insert(parts, (integration.format_paths and integration.format_paths(ref)) or ("@" .. ref))
+          end
+          return table.concat(parts, "\n")
+        end,
         terminal_keys = {
           terminal_mode = {
             normal_mode = { "<M-q>" },
@@ -40,6 +52,18 @@ return {
         end,
         format_paths = function(path)
           return "@" .. path
+        end,
+        format_ask_query = function(data, integration)
+          local parts = { data.question, "" }
+          if data.selection then
+            table.insert(parts, "```" .. data.relative_file .. ":" .. data.start_line .. "-" .. data.end_line)
+            table.insert(parts, data.selection)
+            table.insert(parts, "```")
+          else
+            local ref = data.relative_file .. ":" .. data.start_line
+            table.insert(parts, (integration.format_paths and integration.format_paths(ref)) or ("@" .. ref))
+          end
+          return table.concat(parts, "\n")
         end,
       },
     },
@@ -59,6 +83,14 @@ return {
         ":CLIIntegration open_root OpenCode<CR>",
         desc = "OpenCode New Session",
         silent = true,
+      },
+      {
+        "<leader>aq",
+        function()
+          require("cli-integration").hooks.ask("OpenCode")
+        end,
+        desc = "OpenCode Ask (inline)",
+        mode = { "n", "v" },
       },
       -- NOTE: OpenCode Sessions
       {
@@ -114,6 +146,14 @@ return {
         ":CLIIntegration open_root Gemini<CR>",
         desc = "Gemini New Session",
         silent = true,
+      },
+      {
+        "<leader>aQ",
+        function()
+          require("cli-integration").hooks.ask("Gemini")
+        end,
+        desc = "Gemini Ask (inline)",
+        mode = { "n", "v" },
       },
       -- NOTE: Gemini Sessions
       {
