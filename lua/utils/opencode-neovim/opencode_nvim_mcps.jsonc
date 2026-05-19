@@ -18,7 +18,7 @@
   // Skill permissions for custom agents:
   // allow neovim skills freely, keep ask for superpowers
   "agent": {
-    "logic": {
+    "z-logic": {
       "permission": {
         "skill": {
           "using-neovim": "allow",
@@ -28,7 +28,7 @@
         },
       },
     },
-    "forge": {
+    "z-forge": {
       "permission": {
         "skill": {
           "using-neovim": "allow",
@@ -38,7 +38,7 @@
         },
       },
     },
-    "nexus": {
+    "z-nexus": {
       "permission": {
         "skill": {
           "using-neovim": "allow",
@@ -48,7 +48,7 @@
         },
       },
     },
-    "ultra": {
+    "z-ultra": {
       "permission": {
         "skill": {
           "using-neovim": "allow",
@@ -58,7 +58,7 @@
         },
       },
     },
-    "pilot": {
+    "z-pilot": {
       "permission": {
         "skill": {
           "using-neovim": "allow",
@@ -68,7 +68,7 @@
         },
       },
     },
-    "spark": {
+    "z-spark": {
       "permission": {
         "skill": {
           "using-neovim": "allow",
