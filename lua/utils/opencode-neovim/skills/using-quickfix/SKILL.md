@@ -92,10 +92,10 @@ Prefer **quickfix** for agent-driven operations (simpler, global).
 
 ## Common Mistakes
 
-| Mistake | Fix |
-| ------- | --- |
-| Making multi-file edits without showing scope first | Always `neovim_vim_grep` + `:copen` before editing |
-| Using `vim_search` for project-wide search | `vim_search` is buffer-local; use `neovim_vim_grep` |
-| Forgetting to open quickfix after populating | Always call `neovim_vim_command(":copen")` so user sees results |
-| Parsing quickfix output manually from buffer | Use `getqflist()` for structured data |
-| Using `vim_edit` for multi-file edits | Use native `edit`/`write` + `:e` to reload instead |
+| Mistake                                             | Fix                                                             |
+| --------------------------------------------------- | --------------------------------------------------------------- |
+| Making multi-file edits without showing scope first | Always `neovim_vim_grep` + `:copen` before editing              |
+| Using `vim_search` for project-wide search          | `vim_search` is buffer-local; use `neovim_vim_grep`             |
+| Forgetting to open quickfix after populating        | Always call `neovim_vim_command(":copen")` so user sees results |
+| Parsing quickfix output manually from buffer        | Use `getqflist()` for structured data                           |
+| Using `vim_edit` for multi-file edits               | Use native `edit`/`write` + `:e` to reload instead              |

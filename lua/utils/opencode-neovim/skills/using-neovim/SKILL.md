@@ -25,25 +25,26 @@ After any edit, open, or navigation: leave the buffer focused so the user sees t
 
 ## Tools Quick Reference
 
-| Tool | MCP Name | Purpose |
-| ---- | -------- | ------- |
-| `vim_status` | `neovim_vim_status` | Current buffer, cursor, mode, LSP clients, window layout |
-| `vim_buffer` | `neovim_vim_buffer` | Read buffer contents (optionally by filename) |
-| `vim_buffer_switch` | `neovim_vim_buffer_switch` | Switch to buffer by name or number |
-| `vim_file_open` | `neovim_vim_file_open` | Open a file into a new buffer |
-| `vim_command` | `neovim_vim_command` | Run any Vim command (`:norm`, `:e`, `:bd`, `!shell`) |
-| `vim_search` | `neovim_vim_search` | Regex search within current buffer |
-| `vim_search_replace` | `neovim_vim_search_replace` | Find-and-replace in current buffer |
-| `vim_grep` | `neovim_vim_grep` | Project-wide vimgrep → populates quickfix list |
-| `vim_window` | `neovim_vim_window` | Split, vsplit, close, navigate windows |
-| `vim_register` | `neovim_vim_register` | Set register content |
-| `vim_macro` | `neovim_vim_macro` | Record / stop / play macros |
-| `vim_tab` | `neovim_vim_tab` | Tab management (new, close, next, prev…) |
-| `vim_fold` | `neovim_vim_fold` | Code folding (create/open/close/delete/toggle) |
-| `vim_jump` | `neovim_vim_jump` | Jump list navigation (back/forward/list) |
-| `vim_health` | `neovim_vim_health` | Connection health check |
+| Tool                 | MCP Name                    | Purpose                                                  |
+| -------------------- | --------------------------- | -------------------------------------------------------- |
+| `vim_status`         | `neovim_vim_status`         | Current buffer, cursor, mode, LSP clients, window layout |
+| `vim_buffer`         | `neovim_vim_buffer`         | Read buffer contents (optionally by filename)            |
+| `vim_buffer_switch`  | `neovim_vim_buffer_switch`  | Switch to buffer by name or number                       |
+| `vim_file_open`      | `neovim_vim_file_open`      | Open a file into a new buffer                            |
+| `vim_command`        | `neovim_vim_command`        | Run any Vim command (`:norm`, `:e`, `:bd`, `!shell`)     |
+| `vim_search`         | `neovim_vim_search`         | Regex search within current buffer                       |
+| `vim_search_replace` | `neovim_vim_search_replace` | Find-and-replace in current buffer                       |
+| `vim_grep`           | `neovim_vim_grep`           | Project-wide vimgrep → populates quickfix list           |
+| `vim_window`         | `neovim_vim_window`         | Split, vsplit, close, navigate windows                   |
+| `vim_register`       | `neovim_vim_register`       | Set register content                                     |
+| `vim_macro`          | `neovim_vim_macro`          | Record / stop / play macros                              |
+| `vim_tab`            | `neovim_vim_tab`            | Tab management (new, close, next, prev…)                 |
+| `vim_fold`           | `neovim_vim_fold`           | Code folding (create/open/close/delete/toggle)           |
+| `vim_jump`           | `neovim_vim_jump`           | Jump list navigation (back/forward/list)                 |
+| `vim_health`         | `neovim_vim_health`         | Connection health check                                  |
 
 **Deprecated tools** (avoid using):
+
 - `vim_edit` — unreliable with line-number based editing; use native `edit`/`write` tools instead
 - `vim_buffer_save` — use native `write` tool instead
 - `vim_mark` and `vim_visual` — BROKEN (MCP server bug with type coercion). Use `vim_command` equivalents instead (see below).
@@ -55,6 +56,7 @@ After any edit, open, or navigation: leave the buffer focused so the user sees t
 ### `vim_edit` — Unreliable, Use Native Tools Instead
 
 `neovim_vim_edit` uses line-number based editing which fails when:
+
 - Buffer content changed between read and edit
 - Buffer is `nomodifiable` (e.g., OpenCode's UI buffer)
 - Buffer is not the active buffer (replaceAll silently fails)
@@ -77,12 +79,12 @@ If the search pattern has no matches, Vim returns error E480. This is expected b
 
 ## `vim_command` Equivalents for Broken Tools
 
-| Tool | `vim_command` Equivalent |
-| ---- | ------------------------ |
-| `vim_mark` (set mark 'a' at line 5, col 3) | `:call cursor(5, 3)` then `:normal ma` |
-| `vim_visual` (select lines) | `:call cursor(startLine, startCol)` then `:normal v` + cursor movement |
-| `vim_fold` openall | `:normal! zR` |
-| `vim_fold` closeall | `:normal! zM` |
+| Tool                                       | `vim_command` Equivalent                                               |
+| ------------------------------------------ | ---------------------------------------------------------------------- |
+| `vim_mark` (set mark 'a' at line 5, col 3) | `:call cursor(5, 3)` then `:normal ma`                                 |
+| `vim_visual` (select lines)                | `:call cursor(startLine, startCol)` then `:normal v` + cursor movement |
+| `vim_fold` openall                         | `:normal! zR`                                                          |
+| `vim_fold` closeall                        | `:normal! zM`                                                          |
 
 ---
 
@@ -98,6 +100,7 @@ If the search pattern has no matches, Vim returns error E480. This is expected b
 4. Open the file in Neovim so the user sees it: `neovim_vim_file_open` or `neovim_vim_command(":e <path>")`
 
 This approach is more reliable than `vim_edit` because:
+
 - Native tools use string matching, not line numbers
 - No risk of editing the wrong buffer
 - No `nomodifiable` issues
@@ -172,11 +175,11 @@ Open quickfix after populating: `neovim_vim_command(":copen")`.
 
 ## Common Mistakes
 
-| Mistake | Fix |
-| ------- | --- |
-| Using `vim_edit` instead of native tools | Use native `edit`/`write` + `:e` to reload |
-| Not reloading buffer after native edit | Call `neovim_vim_command(":e")` or `:checktime` after editing |
-| Not opening the file after editing | Call `neovim_vim_file_open` or `neovim_vim_command(":e")` so user sees the result |
-| Skipping quickfix for project-wide ops | Use `neovim_vim_grep` first, then open quickfix |
-| Ignoring LSP clients | Check `neovim_vim_status` for `lspInfo` before reasoning about code symbols |
-| Using `vim_mark` or `vim_visual` | These are broken — use `neovim_vim_command` equivalents instead |
+| Mistake                                  | Fix                                                                               |
+| ---------------------------------------- | --------------------------------------------------------------------------------- |
+| Using `vim_edit` instead of native tools | Use native `edit`/`write` + `:e` to reload                                        |
+| Not reloading buffer after native edit   | Call `neovim_vim_command(":e")` or `:checktime` after editing                     |
+| Not opening the file after editing       | Call `neovim_vim_file_open` or `neovim_vim_command(":e")` so user sees the result |
+| Skipping quickfix for project-wide ops   | Use `neovim_vim_grep` first, then open quickfix                                   |
+| Ignoring LSP clients                     | Check `neovim_vim_status` for `lspInfo` before reasoning about code symbols       |
+| Using `vim_mark` or `vim_visual`         | These are broken — use `neovim_vim_command` equivalents instead                   |

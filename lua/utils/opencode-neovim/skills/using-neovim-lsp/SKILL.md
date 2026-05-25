@@ -25,21 +25,21 @@ If `lspInfo` is "LSP information unavailable", no LSP client is attached — LSP
 
 ## Quick Reference
 
-| Operation | Command |
-| --------- | ------- |
-| Go to definition | `neovim_vim_command(":lua vim.lsp.buf.definition()")` |
-| Go to declaration | `neovim_vim_command(":lua vim.lsp.buf.declaration()")` |
-| Go to type definition | `neovim_vim_command(":lua vim.lsp.buf.type_definition()")` |
-| Find all references | `neovim_vim_command(":lua vim.lsp.buf.references()")` |
-| Show hover info | `neovim_vim_command(":lua vim.lsp.buf.hover()")` |
-| Rename symbol | `neovim_vim_command(":lua vim.lsp.buf.rename('NewName')")` |
-| Code actions | `neovim_vim_command(":lua vim.lsp.buf.code_action()")` |
-| Format buffer | `neovim_vim_command(":lua vim.lsp.buf.format()")` |
-| All diagnostics → quickfix | `neovim_vim_command(":lua vim.diagnostic.setqflist()")` |
-| Buffer diagnostics → loclist | `neovim_vim_command(":lua vim.diagnostic.setloclist()")` |
-| Show diagnostic at cursor | `neovim_vim_command(":lua vim.diagnostic.open_float()")` |
-| List workspace symbols | `neovim_vim_command(":lua vim.lsp.buf.workspace_symbol('query')")` |
-| List document symbols | `neovim_vim_command(":lua vim.lsp.buf.document_symbol()")` |
+| Operation                    | Command                                                            |
+| ---------------------------- | ------------------------------------------------------------------ |
+| Go to definition             | `neovim_vim_command(":lua vim.lsp.buf.definition()")`              |
+| Go to declaration            | `neovim_vim_command(":lua vim.lsp.buf.declaration()")`             |
+| Go to type definition        | `neovim_vim_command(":lua vim.lsp.buf.type_definition()")`         |
+| Find all references          | `neovim_vim_command(":lua vim.lsp.buf.references()")`              |
+| Show hover info              | `neovim_vim_command(":lua vim.lsp.buf.hover()")`                   |
+| Rename symbol                | `neovim_vim_command(":lua vim.lsp.buf.rename('NewName')")`         |
+| Code actions                 | `neovim_vim_command(":lua vim.lsp.buf.code_action()")`             |
+| Format buffer                | `neovim_vim_command(":lua vim.lsp.buf.format()")`                  |
+| All diagnostics → quickfix   | `neovim_vim_command(":lua vim.diagnostic.setqflist()")`            |
+| Buffer diagnostics → loclist | `neovim_vim_command(":lua vim.diagnostic.setloclist()")`           |
+| Show diagnostic at cursor    | `neovim_vim_command(":lua vim.diagnostic.open_float()")`           |
+| List workspace symbols       | `neovim_vim_command(":lua vim.lsp.buf.workspace_symbol('query')")` |
+| List document symbols        | `neovim_vim_command(":lua vim.lsp.buf.document_symbol()")`         |
 
 ---
 
@@ -85,6 +85,7 @@ neovim_vim_command(":lua print(vim.fn.json_encode(vim.diagnostic.get(0)))")
 Returns diagnostics for the current buffer (bufnr=0) as JSON. Parse to reason about errors.
 
 For all buffers:
+
 ```
 neovim_vim_command(":lua print(vim.fn.json_encode(vim.diagnostic.get()))")
 ```
@@ -94,6 +95,7 @@ neovim_vim_command(":lua print(vim.fn.json_encode(vim.diagnostic.get()))")
 ## No LSP Client — Fallback
 
 If `neovim_vim_status` returns `lspInfo: "LSP information unavailable"`:
+
 - Use `neovim_vim_grep` for project-wide search
 - Use `neovim_vim_search` for buffer-local search
 - LSP features (references, definition, rename) are unavailable
@@ -102,9 +104,9 @@ If `neovim_vim_status` returns `lspInfo: "LSP information unavailable"`:
 
 ## Common Mistakes
 
-| Mistake | Fix |
-| ------- | --- |
-| Using LSP without checking client | Always `neovim_vim_status` first; check `lspInfo` before LSP commands |
-| Assuming rename worked | Call `:wa` after rename and verify with `neovim_vim_grep` |
-| Using `vim_search` to find references | Use `vim.lsp.buf.references()` for semantic accuracy |
-| Forgetting `:copen` after `references()` | LSP results go to quickfix — open it so user sees them |
+| Mistake                                  | Fix                                                                   |
+| ---------------------------------------- | --------------------------------------------------------------------- |
+| Using LSP without checking client        | Always `neovim_vim_status` first; check `lspInfo` before LSP commands |
+| Assuming rename worked                   | Call `:wa` after rename and verify with `neovim_vim_grep`             |
+| Using `vim_search` to find references    | Use `vim.lsp.buf.references()` for semantic accuracy                  |
+| Forgetting `:copen` after `references()` | LSP results go to quickfix — open it so user sees them                |
