@@ -15,6 +15,10 @@ When the Neovim MCP is active, use `neovim_vim_command` to invoke LSP operations
 
 ## Check LSP Status First
 
+> **Always run the Window Focus Step (see `using-neovim` skill) before calling
+> `neovim_vim_status` or any LSP command.** The terminal window holds focus when
+> the agent runs; without this step, LSP calls act on the wrong buffer.
+
 ```
 neovim_vim_status()   // returns "lspInfo" field
 ```
@@ -47,36 +51,43 @@ If `lspInfo` is "LSP information unavailable", no LSP client is attached — LSP
 
 ### "What does this symbol do?"
 
-1. `neovim_vim_status` → confirm cursor position and LSP client via `lspInfo`.
-2. `neovim_vim_command(":lua vim.lsp.buf.hover()")` → inline docs.
+1. Run Window Focus Step (`using-neovim` skill) — ensure a file window is active.
+2. `neovim_vim_status` → confirm cursor position and LSP client via `lspInfo`.
+3. `neovim_vim_command(":lua vim.lsp.buf.hover()")` → inline docs.
 
 ### "Find all usages of X"
 
-1. Position cursor on symbol via `neovim_vim_command(":norm /X\n")` or by moving to it.
-2. `neovim_vim_command(":lua vim.lsp.buf.references()")` → populates quickfix.
-3. `neovim_vim_command(":copen")` → show results.
-4. See `using-quickfix` skill for navigation.
+1. Run Window Focus Step (`using-neovim` skill) — ensure a file window is active.
+2. Position cursor on symbol via `neovim_vim_command(":norm /X\n")` or by moving to it.
+3. `neovim_vim_command(":lua vim.lsp.buf.references()")` → populates quickfix.
+4. `neovim_vim_command(":copen")` → show results.
+5. See `using-quickfix` skill for navigation.
 
 ### "Rename symbol Y to Z"
 
-1. Position cursor on symbol.
-2. `neovim_vim_command(":lua vim.lsp.buf.rename('Z')")`.
-3. LSP applies rename across all files automatically.
-4. Save affected buffers: `neovim_vim_command(":wa")`.
+1. Run Window Focus Step (`using-neovim` skill) — ensure a file window is active.
+2. Position cursor on symbol.
+3. `neovim_vim_command(":lua vim.lsp.buf.rename('Z')")`.
+4. LSP applies rename across all files automatically.
+5. Save affected buffers: `neovim_vim_command(":wa")`.
 
 ### "Show all errors in the project"
 
-1. `neovim_vim_command(":lua vim.diagnostic.setqflist()")`.
-2. `neovim_vim_command(":copen")`.
+1. Run Window Focus Step (`using-neovim` skill) — ensure a file window is active.
+2. `neovim_vim_command(":lua vim.diagnostic.setqflist()")`.
+3. `neovim_vim_command(":copen")`.
 
 ### "Jump to definition and open in split"
 
-1. `neovim_vim_window("vsplit")` → open vertical split first.
-2. `neovim_vim_command(":lua vim.lsp.buf.definition()")` → jump in new split.
+1. Run Window Focus Step (`using-neovim` skill) — ensure a file window is active.
+2. `neovim_vim_window("vsplit")` → open vertical split first.
+3. `neovim_vim_command(":lua vim.lsp.buf.definition()")` → jump in new split.
 
 ---
 
 ## Reading Diagnostics Programmatically
+
+> Run Window Focus Step (`using-neovim` skill) before reading diagnostics — `vim.diagnostic.get(0)` reads the current buffer, which will be the terminal buffer if focus isn't switched first.
 
 ```
 neovim_vim_command(":lua print(vim.fn.json_encode(vim.diagnostic.get(0)))")
@@ -110,3 +121,4 @@ If `neovim_vim_status` returns `lspInfo: "LSP information unavailable"`:
 | Assuming rename worked                   | Call `:wa` after rename and verify with `neovim_vim_grep`             |
 | Using `vim_search` to find references    | Use `vim.lsp.buf.references()` for semantic accuracy                  |
 | Forgetting `:copen` after `references()` | LSP results go to quickfix — open it so user sees them                |
+| Not focusing a file window before LSP calls | Run Window Focus Step before `neovim_vim_status` and all LSP commands |

@@ -108,41 +108,67 @@ This approach is more reliable than `vim_edit` because:
 
 ---
 
+## Window Focus Step — Required Before Buffer-Dependent Operations
+
+The OpenCode CLIIntegration terminal window holds focus when the agent runs.
+Calling any MCP tool without switching away first will act on the terminal buffer,
+not the user's file. Always run this snippet before any tool call that depends on
+buffer context (status, LSP, diagnostics, buffer read, search, replace):
+
+```vim
+:lua for _, w in ipairs(vim.api.nvim_list_wins()) do local b = vim.api.nvim_win_get_buf(w) local bt = vim.bo[b].buftype local bn = vim.api.nvim_buf_get_name(b) if bt == "" and bn ~= "" then vim.api.nvim_set_current_win(w) break end end
+```
+
+**What it does:** Iterates all open windows, finds the first with `buftype=""` (normal
+file — excludes terminal, NeoTree, quickfix, nofile buffers) and a non-empty name,
+and focuses it. Safe to call even when a file window is already focused.
+
+**When to skip:** Only skip if the operation is explicitly window-agnostic (e.g.,
+`:wa`, `:checktime`, opening a brand-new file with `vim_file_open` when you don't
+need the current buffer context).
+
+---
+
 ## Interaction Patterns
 
 ### "What's happening on line X?"
 
-1. `neovim_vim_status` → get active filename and cursor.
-2. `neovim_vim_buffer` (with filename) → read the target buffer.
-3. Use LSP info from `neovim_vim_status` (attached clients) to reason about diagnostics if needed.
-4. Respond with context from that file.
+1. Run Window Focus Step (see above) — ensure a file window is active.
+2. `neovim_vim_status` → get active filename and cursor.
+3. `neovim_vim_buffer` (with filename) → read the target buffer.
+4. Use LSP info from `neovim_vim_status` (attached clients) to reason about diagnostics if needed.
+5. Respond with context from that file.
 
 ### "Modify / fix X"
 
-1. Use native `edit` tool to modify the file.
-2. Run the formatter as configured.
-3. Reload buffer: `neovim_vim_command(":e")` or `:checktime`.
-4. Open file in Neovim: `neovim_vim_file_open`.
+1. Run Window Focus Step — ensure a file window is active.
+2. Use native `edit` tool to modify the file.
+3. Run the formatter as configured.
+4. Reload buffer: `neovim_vim_command(":e")` or `:checktime`.
+5. Open file in Neovim: `neovim_vim_file_open`.
 
 ### "Search and replace all references to Y"
 
-1. `neovim_vim_grep` pattern → populates quickfix list (user sees all matches).
-2. For buffer-local replace: `neovim_vim_search_replace` with pattern and replacement.
-3. For project-wide replace: iterate quickfix results, open each buffer, apply native `edit`, reload with `:e`.
-4. Prefer `vim_grep` first — it improves UX by showing the quickfix list before changes.
+1. Run Window Focus Step — ensure a file window is active.
+2. `neovim_vim_grep` pattern → populates quickfix list (user sees all matches).
+3. For buffer-local replace: `neovim_vim_search_replace` with pattern and replacement.
+4. For project-wide replace: iterate quickfix results, open each buffer, apply native `edit`, reload with `:e`.
+5. Prefer `vim_grep` first — it improves UX by showing the quickfix list before changes.
 
 ### "Open files related to Z"
 
-1. Use `neovim_vim_grep` or existing knowledge to find relevant files.
-2. `neovim_vim_file_open` for each file.
-3. Use `neovim_vim_window split` / `vsplit` to show multiple files simultaneously when relevant.
-4. Call `neovim_vim_status` after to confirm layout.
+1. Run Window Focus Step — ensure a file window is active.
+2. Use `neovim_vim_grep` or existing knowledge to find relevant files.
+3. `neovim_vim_file_open` for each file.
+4. Use `neovim_vim_window split` / `vsplit` to show multiple files simultaneously when relevant.
+5. Call `neovim_vim_status` after to confirm layout.
 
 ### "Go to / navigate to X"
 
-- Use `neovim_vim_command` with `:e filename`, `:b bufname`, or `:tag symbol`.
-- Use `neovim_vim_jump` for back/forward in jump list.
-- Use `neovim_vim_buffer_switch` for known buffer names.
+1. Run Window Focus Step (see above) — ensure a file window is active.
+2. Use `neovim_vim_command` with `:e filename`, `:b bufname`, or `:tag symbol`.
+3. Use `neovim_vim_jump` for back/forward in jump list.
+4. Use `neovim_vim_buffer_switch` for known buffer names.
 
 ### "Run a shell command"
 
@@ -183,3 +209,4 @@ Open quickfix after populating: `neovim_vim_command(":copen")`.
 | Skipping quickfix for project-wide ops   | Use `neovim_vim_grep` first, then open quickfix                                   |
 | Ignoring LSP clients                     | Check `neovim_vim_status` for `lspInfo` before reasoning about code symbols       |
 | Using `vim_mark` or `vim_visual`         | These are broken — use `neovim_vim_command` equivalents instead                   |
+| Not focusing a file window before buffer ops | Run Window Focus Step before `neovim_vim_status`, `neovim_vim_buffer`, LSP commands, or search |

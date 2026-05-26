@@ -23,6 +23,17 @@ The quickfix list is Neovim's built-in multi-file navigation hub. Populate it fo
 
 ---
 
+## Window Focus Step — Required Before Quickfix Operations
+
+Before populating or navigating the quickfix list, always run the Window Focus Step
+(`using-neovim` skill) to ensure operations target a file buffer, not the terminal window.
+
+```vim
+:lua for _, w in ipairs(vim.api.nvim_list_wins()) do local b = vim.api.nvim_win_get_buf(w) local bt = vim.bo[b].buftype local bn = vim.api.nvim_buf_get_name(b) if bt == "" and bn ~= "" then vim.api.nvim_set_current_win(w) break end end
+```
+
+---
+
 ## Core Pattern
 
 ### 1. Populate via `vim_grep`
@@ -70,11 +81,12 @@ Parse the output to get file paths and line numbers for batch edits.
 
 ## Multi-File Edit Workflow
 
-1. `neovim_vim_grep` → populate quickfix
-2. `neovim_vim_command(":copen")` → show user the scope
-3. Parse `getqflist()` → collect file+line pairs
-4. For each entry: use native `edit`/`write` tool to modify the file, then `neovim_vim_command(":e")` to reload buffer
-5. `neovim_vim_command(":cclose")` when done
+1. Run Window Focus Step (`using-neovim` skill) — ensure a file window is active.
+2. `neovim_vim_grep` → populate quickfix.
+3. `neovim_vim_command(":copen")` → show user the scope.
+4. Parse `getqflist()` → collect file+line pairs.
+5. For each entry: use native `edit`/`write` tool to modify the file, then `neovim_vim_command(":e")` to reload buffer.
+6. `neovim_vim_command(":cclose")` when done.
 
 ---
 
@@ -99,3 +111,4 @@ Prefer **quickfix** for agent-driven operations (simpler, global).
 | Forgetting to open quickfix after populating        | Always call `neovim_vim_command(":copen")` so user sees results |
 | Parsing quickfix output manually from buffer        | Use `getqflist()` for structured data                           |
 | Using `vim_edit` for multi-file edits               | Use native `edit`/`write` + `:e` to reload instead              |
+| Not focusing a file window before quickfix ops | Run Window Focus Step before `neovim_vim_grep` and quickfix population |
