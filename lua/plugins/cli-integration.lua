@@ -31,7 +31,7 @@ return {
           submit = { "<C-s>", "<C-CR>" },
           enter = { "<CR>" },
           help = { "<M-?>", "??", "\\\\" },
-          toggle_width = { "<C-f>" },
+          toggle_fullscreen = { "<C-f>" },
         },
         normal_mode = {
           hide = { "<Esc>" },
