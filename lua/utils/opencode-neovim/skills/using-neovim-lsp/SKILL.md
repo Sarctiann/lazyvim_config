@@ -5,120 +5,71 @@ description: Use when navigating code symbols, finding definitions or references
 
 # Using Neovim LSP via MCP
 
-## Overview
+## Purpose
 
-When the Neovim MCP is active, use `neovim_vim_command` to invoke LSP operations through Neovim's built-in `vim.lsp` and `vim.diagnostic` APIs. Always verify an LSP client is attached before relying on LSP features.
+LSP through Neovim MCP is for **reading context** (hover info, diagnostics, checking which language server is active). Do NOT use MCP to perform file operations like renaming or formatting — use native tools instead.
 
 **Requires:** Neovim MCP active. See `using-neovim` skill.
 
----
-
-## Check LSP Status First
-
-> **Always run the Window Focus Step (see `using-neovim` skill) before calling
-> `neovim_vim_status` or any LSP command.** The terminal window holds focus when
-> the agent runs; without this step, LSP calls act on the wrong buffer.
+## Check LSP Status
 
 ```
 neovim_vim_status()   // returns "lspInfo" field
 ```
 
-If `lspInfo` is "LSP information unavailable", no LSP client is attached — LSP features are unavailable. Fall back to `neovim_vim_grep` or file reads.
+If `lspInfo` is "LSP information unavailable", no LSP client is attached.
 
----
+## Quick Reference (Read-Only Operations)
 
-## Quick Reference
+These are safe to use for understanding code context:
 
-| Operation                    | Command                                                            |
-| ---------------------------- | ------------------------------------------------------------------ |
-| Go to definition             | `neovim_vim_command(":lua vim.lsp.buf.definition()")`              |
-| Go to declaration            | `neovim_vim_command(":lua vim.lsp.buf.declaration()")`             |
-| Go to type definition        | `neovim_vim_command(":lua vim.lsp.buf.type_definition()")`         |
-| Find all references          | `neovim_vim_command(":lua vim.lsp.buf.references()")`              |
-| Show hover info              | `neovim_vim_command(":lua vim.lsp.buf.hover()")`                   |
-| Rename symbol                | `neovim_vim_command(":lua vim.lsp.buf.rename('NewName')")`         |
-| Code actions                 | `neovim_vim_command(":lua vim.lsp.buf.code_action()")`             |
-| Format buffer                | `neovim_vim_command(":lua vim.lsp.buf.format()")`                  |
-| All diagnostics → quickfix   | `neovim_vim_command(":lua vim.diagnostic.setqflist()")`            |
-| Buffer diagnostics → loclist | `neovim_vim_command(":lua vim.diagnostic.setloclist()")`           |
-| Show diagnostic at cursor    | `neovim_vim_command(":lua vim.diagnostic.open_float()")`           |
-| List workspace symbols       | `neovim_vim_command(":lua vim.lsp.buf.workspace_symbol('query')")` |
-| List document symbols        | `neovim_vim_command(":lua vim.lsp.buf.document_symbol()")`         |
+| Operation | Command |
+|-----------|---------|
+| Go to definition | `neovim_vim_command(":lua vim.lsp.buf.definition()")` |
+| Go to type definition | `neovim_vim_command(":lua vim.lsp.buf.type_definition()")` |
+| Show hover info | `neovim_vim_command(":lua vim.lsp.buf.hover()")` |
+| Buffer diagnostics → loclist | `neovim_vim_command(":lua vim.diagnostic.setloclist()")` |
+| Show diagnostic at cursor | `neovim_vim_command(":lua vim.diagnostic.open_float()")` |
+| List workspace symbols | `neovim_vim_command(":lua vim.lsp.buf.workspace_symbol('query')")` |
+| List document symbols | `neovim_vim_command(":lua vim.lsp.buf.document_symbol()")` |
 
----
+## Operations to AVOID via MCP
 
-## Typical Workflows
+Do NOT use MCP for these — use native tools instead:
 
-### "What does this symbol do?"
-
-1. Run Window Focus Step (`using-neovim` skill) — ensure a file window is active.
-2. `neovim_vim_status` → confirm cursor position and LSP client via `lspInfo`.
-3. `neovim_vim_command(":lua vim.lsp.buf.hover()")` → inline docs.
-
-### "Find all usages of X"
-
-1. Run Window Focus Step (`using-neovim` skill) — ensure a file window is active.
-2. Position cursor on symbol via `neovim_vim_command(":norm /X\n")` or by moving to it.
-3. `neovim_vim_command(":lua vim.lsp.buf.references()")` → populates quickfix.
-4. `neovim_vim_command(":copen")` → show results.
-5. See `using-quickfix` skill for navigation.
-
-### "Rename symbol Y to Z"
-
-1. Run Window Focus Step (`using-neovim` skill) — ensure a file window is active.
-2. Position cursor on symbol.
-3. `neovim_vim_command(":lua vim.lsp.buf.rename('Z')")`.
-4. LSP applies rename across all files automatically.
-5. Save affected buffers: `neovim_vim_command(":wa")`.
-
-### "Show all errors in the project"
-
-1. Run Window Focus Step (`using-neovim` skill) — ensure a file window is active.
-2. `neovim_vim_command(":lua vim.diagnostic.setqflist()")`.
-3. `neovim_vim_command(":copen")`.
-
-### "Jump to definition and open in split"
-
-1. Run Window Focus Step (`using-neovim` skill) — ensure a file window is active.
-2. `neovim_vim_window("vsplit")` → open vertical split first.
-3. `neovim_vim_command(":lua vim.lsp.buf.definition()")` → jump in new split.
-
----
+| Operation | Why | Native Alternative |
+|-----------|-----|-------------------|
+| **Rename symbol** | MCP rename applies changes invisibly, conflicts with native tools | native `grep` + `edit` |
+| **Format buffer** | Use the project's formatter directly | run formatter CLI or native tool |
+| **Code actions** | Unreliable through MCP | use native tools to make changes |
+| **Find references** | native `grep` is more thorough and reliable | native `grep` |
+| **All diagnostics → quickfix** | Use native lint/typecheck commands instead | run `npm run typecheck`, `ruff`, etc. |
 
 ## Reading Diagnostics Programmatically
-
-> Run Window Focus Step (`using-neovim` skill) before reading diagnostics — `vim.diagnostic.get(0)` reads the current buffer, which will be the terminal buffer if focus isn't switched first.
 
 ```
 neovim_vim_command(":lua print(vim.fn.json_encode(vim.diagnostic.get(0)))")
 ```
 
-Returns diagnostics for the current buffer (bufnr=0) as JSON. Parse to reason about errors.
-
-For all buffers:
+Returns diagnostics for the current buffer (bufnr=0) as JSON. For all buffers:
 
 ```
 neovim_vim_command(":lua print(vim.fn.json_encode(vim.diagnostic.get()))")
 ```
 
----
-
 ## No LSP Client — Fallback
 
 If `neovim_vim_status` returns `lspInfo: "LSP information unavailable"`:
 
-- Use `neovim_vim_grep` for project-wide search
-- Use `neovim_vim_search` for buffer-local search
-- LSP features (references, definition, rename) are unavailable
-
----
+- Use native `grep` for project-wide search
+- Use native `read`/`grep` for code understanding
+- LSP features (hover, definition, diagnostics) are unavailable
 
 ## Common Mistakes
 
-| Mistake                                  | Fix                                                                   |
-| ---------------------------------------- | --------------------------------------------------------------------- |
-| Using LSP without checking client        | Always `neovim_vim_status` first; check `lspInfo` before LSP commands |
-| Assuming rename worked                   | Call `:wa` after rename and verify with `neovim_vim_grep`             |
-| Using `vim_search` to find references    | Use `vim.lsp.buf.references()` for semantic accuracy                  |
-| Forgetting `:copen` after `references()` | LSP results go to quickfix — open it so user sees them                |
-| Not focusing a file window before LSP calls | Run Window Focus Step before `neovim_vim_status` and all LSP commands |
+| Mistake | Fix |
+|---------|-----|
+| Using LSP rename through MCP | Use native `grep` + `edit` |
+| Using LSP references instead of native grep | native `grep` finds all occurrences including comments/strings |
+| Using LSP formatting through MCP | Run the project's formatter directly |
+| Assuming rename worked without verification | Native grep+edit gives you full control |
