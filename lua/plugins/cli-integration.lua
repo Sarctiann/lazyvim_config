@@ -15,6 +15,8 @@ return {
     "Sarctiann/cli-integration.nvim",
     --- @type Cli-Integration.Config
     opts = {
+      -- WARN: Remember to turn this off (false).
+      debug = false,
       -- NOTE: Global config
       show_help_on_open = true,
       new_lines_amount = 1,
