@@ -147,8 +147,19 @@ return {
         start_with_text = function(visual_text, integration)
           return require("cli-integration.hooks").insert_current_path_or_explain_selection()(visual_text, integration)
         end,
-        format_paths = function(path)
-          return "@" .. path
+        format_paths = function(paths, actions)
+          if #paths == 1 then
+            actions.send_keys("@" .. paths[1])
+            actions.wait(250)
+            actions.send_keys("<CR>")
+          else
+            actions.for_each_path(function(path)
+              actions.send_keys("@" .. path)
+              actions.wait(250)
+              actions.send_keys("<CR>")
+              actions.send_line()
+            end)
+          end
         end,
         on_ask_submit = function(data, actions)
           if data.selection then
