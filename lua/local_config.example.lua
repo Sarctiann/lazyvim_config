@@ -144,8 +144,8 @@ return {
         on_open = function()
           opencode_utils.on_open()
         end,
-        start_with_text = function(visual_text, integration)
-          return require("cli-integration.hooks").insert_current_path_or_explain_selection()(visual_text, integration)
+        start_doing = function(visual_text, actions)
+          require("cli-integration.hooks").insert_current_path_or_explain_selection()(visual_text, actions, "OpenCode")
         end,
         format_paths = function(paths, actions)
           if #paths == 1 then
@@ -195,11 +195,11 @@ return {
         name = "Gemini",
         cli_cmd = "gemini",
         cli_ready_flags = { search_for = "Type your", from_line = 15, lines_amt = 10 },
-        start_with_text = function(visual_text, integration)
-          return require("cli-integration.hooks").insert_current_path_or_explain_selection()(visual_text, integration)
+        start_doing = function(visual_text, actions)
+          require("cli-integration.hooks").insert_current_path_or_explain_selection()(visual_text, actions, "Gemini")
         end,
-        format_paths = function(path)
-          return "@" .. path
+        format_paths = function(paths, actions)
+          actions.send_keys("@" .. paths[1])
         end,
       },
     },
