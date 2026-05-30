@@ -1,3 +1,7 @@
+> **⚠️ DEPRECATED — May 30, 2026**
+>
+> This repository is no longer maintained. All configuration has been consolidated into the [Sarctiann/dotfiles](https://github.com/Sarctiann/dotfiles) monorepo, which is now the single source of truth.
+
 # Sarctiann NVIM Setup
 
 > A Neovim configuration based on [LazyVim](https://github.com/LazyVim/LazyVim), optimized for developers transitioning from VSCode who love terminal interfaces.
